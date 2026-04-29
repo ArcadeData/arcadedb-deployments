@@ -5,6 +5,7 @@ services:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node1
         -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
         -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
         -Darcadedb.ha.replicationFactor=3
     ports:
@@ -15,6 +16,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 30s
     networks:
       - arcadedb-ha
 
@@ -24,6 +26,7 @@ services:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node2
         -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
         -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
         -Darcadedb.ha.replicationFactor=3
     ports:
@@ -34,6 +37,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 30s
     networks:
       - arcadedb-ha
 
@@ -43,6 +47,7 @@ services:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node3
         -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
         -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
         -Darcadedb.ha.replicationFactor=3
     ports:
@@ -53,6 +58,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 30s
     networks:
       - arcadedb-ha
 
