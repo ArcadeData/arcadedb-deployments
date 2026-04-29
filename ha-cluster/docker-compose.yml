@@ -1,0 +1,75 @@
+services:
+  # ArcadeDB HA (v26.4.2+) requires server names with a numeric suffix (e.g., "node-0")
+  # for Raft peer identification. Names like "node1" cause an IllegalArgumentException.
+  node-0:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node-0
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2480:2480"
+      - "2424:2434"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    networks:
+      arcadedb-ha:
+        aliases:
+          - node-0
+
+  node-1:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node-1
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2481:2480"
+      - "2425:2434"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    networks:
+      arcadedb-ha:
+        aliases:
+          - node-1
+
+  node-2:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node-2
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.enabled=true
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2482:2480"
+      - "2426:2434"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    networks:
+      arcadedb-ha:
+        aliases:
+          - node-2
+
+networks:
+  arcadedb-ha:
+    driver: bridge

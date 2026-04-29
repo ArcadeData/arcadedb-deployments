@@ -1,0 +1,33 @@
+name: HA Cluster CI
+
+on:
+  push:
+    paths:
+      - ha-cluster/**
+      - .github/workflows/ha-cluster.yml
+  pull_request:
+    paths:
+      - ha-cluster/**
+      - .github/workflows/ha-cluster.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Start HA cluster
+        run: ./ha-cluster/start.sh
+
+      - name: Test HA cluster
+        run: ./ha-cluster/test.sh
+
+      - name: Tear down
+        if: always()
+        working-directory: ha-cluster
+        run: docker compose down -v
