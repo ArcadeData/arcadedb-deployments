@@ -6,4 +6,6 @@ pull_request_rules:
     actions:
       merge:
         method: merge
-        commit_message_template: "{{ title }} [skip ci]"
+        commit_message_template: |
+          {{ title | markdownify }} [skip ci]
+          {{ body | markdownify }}

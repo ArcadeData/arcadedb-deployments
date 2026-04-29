@@ -23,6 +23,7 @@ repos:
         args:
           - --autofix
           - --indent=2
+        exclude: '^(\.github/|k8s/).*\.ya?ml$'
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.12.0-2
     hooks:
