@@ -8,11 +8,11 @@ services:
         -Darcadedb.server.name=node-0
         -Darcadedb.server.rootPassword=arcadedb
         -Darcadedb.ha.enabled=true
-        -Darcadedb.ha.serverList=node-0:2424,node-1:2424,node-2:2424
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
         -Darcadedb.ha.replicationFactor=3
     ports:
       - "2480:2480"
-      - "2424:2424"
+      - "2424:2434"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
       interval: 5s
@@ -31,11 +31,11 @@ services:
         -Darcadedb.server.name=node-1
         -Darcadedb.server.rootPassword=arcadedb
         -Darcadedb.ha.enabled=true
-        -Darcadedb.ha.serverList=node-0:2424,node-1:2424,node-2:2424
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
         -Darcadedb.ha.replicationFactor=3
     ports:
       - "2481:2480"
-      - "2425:2424"
+      - "2425:2434"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
       interval: 5s
@@ -54,11 +54,11 @@ services:
         -Darcadedb.server.name=node-2
         -Darcadedb.server.rootPassword=arcadedb
         -Darcadedb.ha.enabled=true
-        -Darcadedb.ha.serverList=node-0:2424,node-1:2424,node-2:2424
+        -Darcadedb.ha.serverList=node-0:2434:2480,node-1:2434:2480,node-2:2434:2480
         -Darcadedb.ha.replicationFactor=3
     ports:
       - "2482:2480"
-      - "2426:2424"
+      - "2426:2434"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
       interval: 5s
