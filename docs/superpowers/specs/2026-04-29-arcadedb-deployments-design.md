@@ -91,7 +91,8 @@ Exit 0 on pass, non-zero on failure
 
 ### `Chart.yaml` + `values.yaml` (kubernetes scenario)
 
-- `Chart.yaml` declares a Helm dependency on the official ArcadeDB chart from `https://github.com/ArcadeData/arcadedb/tree/main/k8s/helm`
+- `Chart.yaml` declares a Helm dependency on the official ArcadeDB chart (source: `https://github.com/ArcadeData/arcadedb/tree/main/k8s/helm`)
+- The published Helm repository URL (OCI or HTTP) must be confirmed during implementation — the GitHub source tree URL is not a valid `repository:` value in `Chart.yaml`
 - `values.yaml` contains only the overrides needed for the showcase (replica count, resource limits, ingress)
 - Pinned chart version in `Chart.yaml` so Dependabot can track and bump it
 
