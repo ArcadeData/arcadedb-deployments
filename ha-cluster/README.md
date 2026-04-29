@@ -38,11 +38,11 @@ docker compose down -v
 
 ## Ports
 
-| Node | HTTP API | Raft |
-|------|----------|-------------|
-| node-0 | 2480 | 2424 → 2434 |
-| node-1 | 2481 | 2425 → 2434 |
-| node-2 | 2482 | 2426 → 2434 |
+| Node | HTTP API (host) | Raft host port | Raft container port |
+|------|-----------------|----------------|---------------------|
+| node-0 | 2480 | 2424 | 2434 |
+| node-1 | 2481 | 2425 | 2434 |
+| node-2 | 2482 | 2426 | 2434 |
 
 ## Environment Variables
 
