@@ -54,6 +54,8 @@ docker compose down -v
 | `NODE2_URL` | `http://localhost:2481` | node-1 HTTP endpoint |
 | `NODE3_URL` | `http://localhost:2482` | node-2 HTTP endpoint |
 
+> **Note:** Variable names use 1-based indexing (`NODE1_URL`, `NODE2_URL`, `NODE3_URL`) while node names are 0-based (`node-0`, `node-1`, `node-2`). ArcadeDB Raft uses the numeric suffix as a 0-based index into the server list, so the naming cannot be changed.
+
 ## Notes
 
 - Server names must follow the pattern `<prefix>-<integer>` (e.g., `node-0`). ArcadeDB v26.4.2 Raft requires a numeric suffix to identify peers. Names like `node1` cause an `IllegalArgumentException` at startup.
