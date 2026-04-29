@@ -1,4 +1,6 @@
 services:
+  # ArcadeDB HA (v26.4.2+) requires server names with a numeric suffix (e.g., "node-0")
+  # for Raft peer identification. Names like "node1" cause an IllegalArgumentException.
   node-0:
     image: arcadedata/arcadedb:26.4.2
     environment:

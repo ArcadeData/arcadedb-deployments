@@ -8,14 +8,14 @@ ARCADEDB_PASS="${ARCADEDB_PASS:-arcadedb}"
 NODE1_URL="${NODE1_URL:-http://localhost:2480}"
 NODE2_URL="${NODE2_URL:-http://localhost:2481}"
 NODE3_URL="${NODE3_URL:-http://localhost:2482}"
-MAX_ATTEMPTS=60
+MAX_ATTEMPTS=90
 
 wait_for_node() {
     local url="$1"
     local name="$2"
     local attempt=0
     echo "Waiting for $name at $url ..."
-    while ! curl -sf "$url/api/v1/ready" > /dev/null 2>&1; do
+    while ! curl -sf --max-time 3 "$url/api/v1/ready" > /dev/null 2>&1; do
         attempt=$((attempt + 1))
         if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
             echo "ERROR: $name did not become ready after $MAX_ATTEMPTS attempts"
@@ -29,9 +29,9 @@ wait_for_node() {
 echo "Starting ArcadeDB HA cluster (3 nodes) ..."
 docker compose up -d
 
-wait_for_node "$NODE1_URL" "node1"
-wait_for_node "$NODE2_URL" "node2"
-wait_for_node "$NODE3_URL" "node3"
+wait_for_node "$NODE1_URL" "node-0"
+wait_for_node "$NODE2_URL" "node-1"
+wait_for_node "$NODE3_URL" "node-2"
 
 echo ""
 echo "Cluster status:"
