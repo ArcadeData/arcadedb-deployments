@@ -50,12 +50,26 @@ check() {
 }
 
 cleanup() {
+    # || true: drop may fail if the test database was never created or if node-0 is not the leader
     curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
         -H "Content-Type: application/json" \
         -d "{\"command\":\"drop database $DB\"}" \
         "$NODE1_URL/api/v1/server" > /dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+query_with_retry() {
+    local url="$1"
+    local expected="$2"
+    local result attempt
+    for attempt in $(seq 1 15); do
+        result="$(query_on "$url" "select text from Message" 2>/dev/null | jq -r '.result[0].text // empty' 2>/dev/null)" || result=""
+        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+        sleep 2
+    done
+    echo "${result:-}"
+    return 1
+}
 
 echo "=== ArcadeDB HA Cluster Test ==="
 echo ""
@@ -69,15 +83,12 @@ curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
 command_on "$NODE1_URL" "create document type Message" > /dev/null
 command_on "$NODE1_URL" "insert into Message set text = 'hello-ha'" > /dev/null
 
-echo "Waiting for replication ..."
-sleep 2
-
-echo "Reading from node-1 ..."
-RESULT2=$(query_on "$NODE2_URL" "select text from Message" | jq -r '.result[0].text')
+echo "Waiting for replication and reading from node-1 ..."
+RESULT2="$(query_with_retry "$NODE2_URL" "hello-ha")" || RESULT2=""
 check "record readable from node-1" "$RESULT2" "hello-ha"
 
 echo "Reading from node-2 ..."
-RESULT3=$(query_on "$NODE3_URL" "select text from Message" | jq -r '.result[0].text')
+RESULT3="$(query_with_retry "$NODE3_URL" "hello-ha")" || RESULT3=""
 check "record readable from node-2" "$RESULT3" "hello-ha"
 
 echo ""
