@@ -1,0 +1,61 @@
+services:
+  node1:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node1
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2480:2480"
+      - "2424:2424"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - arcadedb-ha
+
+  node2:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node2
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2481:2480"
+      - "2425:2424"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - arcadedb-ha
+
+  node3:
+    image: arcadedata/arcadedb:26.4.2
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.name=node3
+        -Darcadedb.server.rootPassword=arcadedb
+        -Darcadedb.ha.serverList=node1:2424,node2:2424,node3:2424
+        -Darcadedb.ha.replicationFactor=3
+    ports:
+      - "2482:2480"
+      - "2426:2424"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - arcadedb-ha
+
+networks:
+  arcadedb-ha:
+    driver: bridge
