@@ -40,11 +40,16 @@ helm install arcadedb . \
     --namespace default \
     --values values.yaml \
     --wait \
-    --timeout 3m
+    --timeout 10m
 
 echo "Starting port-forward to svc/arcadedb-http on localhost:2480 ..."
 kubectl port-forward svc/arcadedb-http 2480:2480 &
 echo $! > "${PID_FILE}"
+sleep 2
+if ! kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+    echo "ERROR: port-forward failed to start — port 2480 may already be in use"
+    exit 1
+fi
 
 wait_for_ready
 

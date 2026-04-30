@@ -7,3 +7,7 @@ arcadedb:
   service:
     http:
       type: ClusterIP   # LoadBalancer is a no-op in kind without MetalLB
+
+  arcadedb:
+    extraCommands:
+      - -Darcadedb.server.mode=development
