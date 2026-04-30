@@ -35,6 +35,11 @@ fi
 echo "Updating Helm dependencies ..."
 helm dependency update .
 
+echo "Creating ArcadeDB credentials secret ..."
+kubectl create secret generic arcadedb-credentials-secret \
+    --from-literal=rootPassword="${ARCADEDB_PASS}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
 echo "Installing ArcadeDB Helm chart (3 replicas, this may take a few minutes) ..."
 helm install arcadedb . \
     --namespace default \

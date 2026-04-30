@@ -8,6 +8,12 @@ arcadedb:
     http:
       type: ClusterIP   # LoadBalancer is a no-op in kind without MetalLB
 
+  credentials:
+    rootPassword:
+      secret:
+        name: arcadedb-credentials-secret
+        key: rootPassword
+
   arcadedb:
     extraCommands:
       - -Darcadedb.server.mode=development
