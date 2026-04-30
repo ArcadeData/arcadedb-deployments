@@ -1,0 +1,46 @@
+name: Kubernetes CI
+
+on:
+  push:
+    paths:
+      - kubernetes/**
+      - .github/workflows/kubernetes.yml
+  pull_request:
+    paths:
+      - kubernetes/**
+      - .github/workflows/kubernetes.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      - name: Install kind
+        run: |
+          curl -sLo /usr/local/bin/kind \
+            https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x /usr/local/bin/kind
+          kind version
+
+      - name: Install Helm
+        run: |
+          curl -sSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz \
+            | tar xz -C /tmp
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version
+
+      - name: Start Kubernetes cluster
+        run: ./kubernetes/start.sh
+
+      - name: Test Kubernetes cluster
+        run: ./kubernetes/test.sh
+
+      - name: Tear down
+        if: always()
+        run: kind delete cluster --name arcadedb
