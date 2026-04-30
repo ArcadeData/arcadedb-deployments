@@ -23,9 +23,10 @@ jobs:
 
       - name: Install kind
         run: |
-          curl -sLo /usr/local/bin/kind \
+          curl -sLo /tmp/kind \
             https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
-          chmod +x /usr/local/bin/kind
+          chmod +x /tmp/kind
+          sudo mv /tmp/kind /usr/local/bin/kind
           kind version
 
       - name: Install Helm
