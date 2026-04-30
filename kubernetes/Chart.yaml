@@ -1,0 +1,9 @@
+apiVersion: v2
+name: arcadedb-kubernetes
+description: Wrapper chart for the ArcadeDB Kubernetes showcase scenario
+type: application
+version: 0.1.0
+dependencies:
+  - name: arcadedb
+    version: "26.4.2"
+    repository: https://helm.arcadedb.com

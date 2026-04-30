@@ -1,0 +1,9 @@
+arcadedb:
+  replicaCount: 3
+
+  image:
+    tag: "26.4.2"
+
+  service:
+    http:
+      type: ClusterIP   # LoadBalancer is a no-op in kind without MetalLB
