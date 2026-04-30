@@ -42,6 +42,20 @@ jobs:
       - name: Test Kubernetes cluster
         run: ./kubernetes/test.sh
 
+      - name: Debug cluster state
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n default -o wide || true
+          echo "=== Services ==="
+          kubectl get svc -n default || true
+          echo "=== arcadedb-0 logs ==="
+          kubectl logs arcadedb-0 -n default --tail=80 || true
+          echo "=== arcadedb-1 logs ==="
+          kubectl logs arcadedb-1 -n default --tail=80 || true
+          echo "=== arcadedb-2 logs ==="
+          kubectl logs arcadedb-2 -n default --tail=80 || true
+
       - name: Tear down
         if: always()
         run: kind delete cluster --name arcadedb
