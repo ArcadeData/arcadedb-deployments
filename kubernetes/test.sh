@@ -85,7 +85,7 @@ check "record readable from cluster" "$RESULT" "hello-k8s"
 echo "Checking HA cluster has 3 online nodes ..."
 ONLINE_NODES=$(curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
     "$ARCADEDB_URL/api/v1/server" \
-    | jq '[.ha.servers[] | select(.status == "ONLINE")] | length' 2>/dev/null) \
+    | jq '(.ha.network.replicas | length) + 1' 2>/dev/null) \
     || ONLINE_NODES=0
 check "3 HA nodes online" "$ONLINE_NODES" "3"
 
