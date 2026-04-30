@@ -83,10 +83,25 @@ RESULT="$(query_with_retry "hello-k8s")" || RESULT=""
 check "record readable from cluster" "$RESULT" "hello-k8s"
 
 echo "Checking HA cluster has 3 online nodes ..."
-ONLINE_NODES=$(curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
-    "$ARCADEDB_URL/api/v1/server" \
-    | jq '(.ha.network.replicas | length) + 1' 2>/dev/null) \
-    || ONLINE_NODES=0
+echo "DEBUG: raw /api/v1/server response:"
+curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" "$ARCADEDB_URL/api/v1/server" | jq . || true
+echo ""
+
+ha_wait_for_nodes() {
+    local expected="$1"
+    local result attempt
+    for attempt in $(seq 1 20); do
+        result=$(curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+            "$ARCADEDB_URL/api/v1/server" \
+            | jq '(.ha.network.replicas | length) + 1' 2>/dev/null) \
+            || result=0
+        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+        sleep 3
+    done
+    echo "${result:-0}"
+    return 1
+}
+ONLINE_NODES=$(ha_wait_for_nodes "3") || ONLINE_NODES=0
 check "3 HA nodes online" "$ONLINE_NODES" "3"
 
 echo ""
