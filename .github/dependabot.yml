@@ -13,3 +13,10 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+
+  - package-ecosystem: "helm"
+    directory: "/kubernetes"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
