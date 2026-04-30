@@ -16,3 +16,7 @@ buildNumber.properties
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# Kubernetes scenario
+kubernetes/charts/
+kubernetes/.port-forward.pid
