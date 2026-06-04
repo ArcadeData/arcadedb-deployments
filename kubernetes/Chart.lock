@@ -1,6 +1,6 @@
 dependencies:
 - name: arcadedb
   repository: https://helm.arcadedb.com
-  version: 26.5.1
-digest: sha256:dd9f0cfa2992509f0f7bcb5640ec56f046a78ea9a570706765e60250ee9e0667
-generated: "2026-05-12T09:45:51.077110938Z"
+  version: 26.6.1
+digest: sha256:bcfe472272aa064c52033571163959253f20e1313dd7182724b219c753b9eda6
+generated: "2026-06-04T12:11:13.05062309Z"
