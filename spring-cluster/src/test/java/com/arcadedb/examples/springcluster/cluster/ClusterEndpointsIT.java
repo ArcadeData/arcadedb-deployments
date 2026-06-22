@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+// Tests use 'localhost' (not app-0) because the new Ratis Raft needs a DNS-resolvable host; production compose uses Docker-resolvable app-0/1/2.
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {

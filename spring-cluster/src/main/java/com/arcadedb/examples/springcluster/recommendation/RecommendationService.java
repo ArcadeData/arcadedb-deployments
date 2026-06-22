@@ -96,19 +96,17 @@ public class RecommendationService {
       return out;
     }
 
-    String inList = candidates.stream()
-        .map(r -> "'" + String.valueOf(r.get("name")).replace("'", "''") + "'")
-        .collect(Collectors.joining(", "));
+    List<String> names = candidates.stream().map(r -> String.valueOf(r.get("name"))).toList();
     List<Double> embedding = embeddingOf("User", "id", userId);
 
-    String rankedSql = "SELECT name, category, price FROM Product WHERE name IN [" + inList + "] "
+    String rankedSql = "SELECT name, category, price FROM Product WHERE name IN :names "
         + "ORDER BY vectorNeighbors('Product[embedding]', " + formatVector(embedding) + ", 10) DESC";
-    out.put("ranked", rows(db().query("sql", rankedSql)));
+    out.put("ranked", rows(db().query("sql", rankedSql, Map.of("names", names))));
 
     String trendingSql = "SELECT productId, sum(purchaseCount) AS trending_score "
-        + "FROM ProductInteraction WHERE productId IN [" + inList + "] "
+        + "FROM ProductInteraction WHERE productId IN :names "
         + "GROUP BY productId ORDER BY trending_score DESC";
-    out.put("trending", rows(db().query("sql", trendingSql)));
+    out.put("trending", rows(db().query("sql", trendingSql, Map.of("names", names))));
 
     return out;
   }
@@ -117,11 +115,14 @@ public class RecommendationService {
     String sql = "SELECT embedding FROM " + type + " WHERE " + keyProp + " = :k LIMIT 1";
     try (ResultSet rs = db().query("sql", sql, Map.of("k", keyValue))) {
       if (rs.hasNext()) {
+        // Guard against null embedding (e.g. follower before replication delivers data).
         List<?> raw = rs.next().getProperty("embedding");
-        return raw.stream().map(v -> ((Number) v).doubleValue()).collect(Collectors.toList());
+        if (raw != null) {
+          return raw.stream().map(v -> ((Number) v).doubleValue()).collect(Collectors.toList());
+        }
       }
     }
-    throw new NoSuchElementException(type + " '" + keyValue + "' not found");
+    throw new NoSuchElementException("No embedding found for " + type);
   }
 
   private static String formatVector(List<Double> vector) {

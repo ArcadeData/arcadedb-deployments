@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+// Tests use 'localhost' (not app-0) because the new Ratis Raft needs a DNS-resolvable host; production compose uses Docker-resolvable app-0/1/2.
 @SpringBootTest(properties = {
     "arcadedb.node-name=localhost",
     "arcadedb.server-list=localhost:12436:12482",
@@ -60,5 +61,9 @@ class RecommendationServiceIT {
     Map<String, Object> result = service.hybrid("u1");
     assertTrue(result.containsKey("candidates"));
     assertFalse(((List<?>) result.get("candidates")).isEmpty());
+    assertTrue(result.containsKey("ranked"));
+    assertTrue(result.containsKey("trending"));
+    assertFalse(((List<?>) result.get("ranked")).isEmpty());
+    assertFalse(((List<?>) result.get("trending")).isEmpty());
   }
 }

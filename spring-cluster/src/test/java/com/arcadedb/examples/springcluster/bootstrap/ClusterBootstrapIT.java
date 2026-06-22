@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+// Tests use 'localhost' (not app-0) because the new Ratis Raft needs a DNS-resolvable host; production compose uses Docker-resolvable app-0/1/2.
 @SpringBootTest(properties = {
     "arcadedb.node-name=localhost",
     "arcadedb.server-list=localhost:12435:12481",
