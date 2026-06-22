@@ -20,3 +20,6 @@ buildNumber.properties
 # Kubernetes scenario
 kubernetes/charts/
 kubernetes/.port-forward.pid
+
+# Spring Cluster scenario (ArcadeDB embedded test logs)
+spring-cluster/log/
