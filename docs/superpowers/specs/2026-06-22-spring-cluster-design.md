@@ -107,12 +107,25 @@ Lifecycle:
 
 An `ApplicationRunner` waits for a leader to be elected, then:
 
-- If `server.getHA().isLeader()` → create the schema and insert the sample data
-  idempotently (`IF NOT EXISTS`).
+- If `server.getHA().isLeader()` → create the database, **broadcast its creation to the
+  replicas**, then create the schema and insert the sample data idempotently (`IF NOT EXISTS`).
 - Else → do nothing; replication delivers the schema and data.
 
 Re-runs are safe. The loader polls for leadership with a bounded timeout and logs the
 outcome (leader seeded / follower waiting).
+
+**Distributed-creation requirement (discovered in Task 10 against a real 3-node cluster):**
+`getOrCreateDatabase()` on the leader creates the database only locally. The followers then
+receive the schema Raft entries for a database that does not exist on their side and crash
+with `DatabaseOperationException`. The leader must therefore push the database to peers
+before applying schema:
+```java
+if (db.getWrappedDatabaseInstance() instanceof HAReplicatedDatabase haDb) {
+  haDb.createInReplicas();   // sends INSTALL_DATABASE_ENTRY to all peers
+}
+```
+The `instanceof` guard makes this a no-op in single-node/embedded-test mode (the wrapped
+instance is not an `HAReplicatedDatabase` there), so unit/integration tests are unaffected.
 
 ## 6. REST API
 
