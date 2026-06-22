@@ -1,0 +1,34 @@
+name: Spring Cluster CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - spring-cluster/**
+      - .github/workflows/spring-cluster.yml
+  pull_request:
+    paths:
+      - spring-cluster/**
+      - .github/workflows/spring-cluster.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Start spring-cluster
+        run: ./spring-cluster/start.sh
+
+      - name: Test spring-cluster
+        run: ./spring-cluster/test.sh
+
+      - name: Tear down
+        if: always()
+        working-directory: spring-cluster
+        run: docker compose down -v
