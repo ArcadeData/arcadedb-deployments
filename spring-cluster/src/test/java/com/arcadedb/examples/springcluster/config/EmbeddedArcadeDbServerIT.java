@@ -10,8 +10,8 @@ import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
-    "arcadedb.node-name=app-0",
-    "arcadedb.server-list=app-0:12434:12480",
+    "arcadedb.node-name=localhost",
+    "arcadedb.server-list=localhost:12434:12480",
     "arcadedb.raft-port=12434",
     "arcadedb.http-port=12480",
     "arcadedb.data-path=target/it-arcadedb/task3"
