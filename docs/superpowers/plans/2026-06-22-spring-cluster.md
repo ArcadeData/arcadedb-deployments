@@ -12,7 +12,7 @@
 
 - Java **25** (Maven `release` 25; runtime base `eclipse-temurin:25-jre`).
 - ArcadeDB **26.6.1**; Spring Boot **3.5.x** (pin a concrete recent patch, e.g. `3.5.6`; Dependabot bumps it).
-- Minimal dependencies: `com.arcadedb:arcadedb-server` (with `arcadedb-studio` **excluded**) and `spring-boot-starter-web`. `spring-boot-starter-test` is **test scope** only. No Actuator.
+- Minimal dependencies: `com.arcadedb:arcadedb-server` (with `arcadedb-studio` **excluded**), `com.arcadedb:arcadedb-ha-raft` (**required** for embedded Raft HA — `arcadedb-server` does not transitively provide it; without it the server starts standalone and never elects a leader), and `spring-boot-starter-web`. `spring-boot-starter-test` is **test scope** only. No Actuator.
 - ArcadeDB's HTTP server stays **enabled** on port `2480` (internal network only) — required for replica→leader write forwarding. No Studio on the classpath.
 - Server names must match `<prefix>-<integer>`: `app-0`, `app-1`, `app-2`.
 - Database name: `RecommendationEngine`. Vectors are 4-dimensional (`COSINE`).

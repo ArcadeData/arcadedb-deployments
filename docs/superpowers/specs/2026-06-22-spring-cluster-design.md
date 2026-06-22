@@ -175,8 +175,11 @@ CI workflow and hooks; no change needed there.
 
 - ArcadeDB **26.6.1**, Spring Boot **3.5.x**, Java **25**.
 - Maven dependencies (minimal):
-  - `com.arcadedb:arcadedb-server` (pulls the engine + HA), with `arcadedb-studio`
-    excluded.
+  - `com.arcadedb:arcadedb-server` (pulls the engine), with `arcadedb-studio` excluded.
+  - `com.arcadedb:arcadedb-ha-raft` — **required** for embedded Raft HA. `arcadedb-server`
+    does NOT transitively provide the Raft consensus implementation; without it the embedded
+    server starts in standalone mode and never elects a leader. (Discovered during
+    implementation, Task 3.)
   - `org.springframework.boot:spring-boot-starter-web`.
 - No Actuator: the health endpoint is a plain Spring MVC controller.
 
