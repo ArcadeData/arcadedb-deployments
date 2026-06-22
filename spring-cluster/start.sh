@@ -26,7 +26,7 @@ echo "Waiting for a single leader to be elected..."
 for i in $(seq 1 30); do
   leaders=0
   for url in "${nodes[@]}"; do
-    if [ "$(curl -sf "$url/api/cluster/status" | jq -r '.leader')" = "true" ]; then
+    if [ "$(curl -sf "$url/api/cluster/status" 2>/dev/null | jq -r '.leader' 2>/dev/null || echo false)" = "true" ]; then
       leaders=$((leaders + 1))
     fi
   done

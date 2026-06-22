@@ -15,7 +15,7 @@ public class EmbeddedArcadeDbServer implements SmartLifecycle {
   private static final Logger log = LoggerFactory.getLogger(EmbeddedArcadeDbServer.class);
 
   private final EmbeddedServerProperties props;
-  private ArcadeDBServer server;
+  private volatile ArcadeDBServer server;
   private volatile boolean running;
 
   public EmbeddedArcadeDbServer(EmbeddedServerProperties props) {

@@ -8,7 +8,7 @@ n2="http://localhost:8082"
 echo "Check 1: exactly one leader"
 leaders=0
 for url in "$n0" "$n1" "$n2"; do
-  if [ "$(curl -sf "$url/api/cluster/status" | jq -r '.leader')" = "true" ]; then
+  if [ "$(curl -sf "$url/api/cluster/status" 2>/dev/null | jq -r '.leader' 2>/dev/null || echo false)" = "true" ]; then
     leaders=$((leaders + 1))
   fi
 done

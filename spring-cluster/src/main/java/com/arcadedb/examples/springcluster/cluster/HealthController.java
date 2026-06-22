@@ -2,6 +2,7 @@ package com.arcadedb.examples.springcluster.cluster;
 
 import com.arcadedb.examples.springcluster.config.EmbeddedArcadeDbServer;
 import com.arcadedb.examples.springcluster.config.EmbeddedServerProperties;
+import com.arcadedb.server.ArcadeDBServer;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,7 +32,8 @@ public class HealthController {
 
   private boolean databaseReachable() {
     try {
-      return embedded.server().getDatabaseNames().contains(props.getDatabaseName());
+      ArcadeDBServer server = embedded.server();
+      return server != null && server.getDatabaseNames().contains(props.getDatabaseName());
     } catch (Exception e) {
       return false;
     }

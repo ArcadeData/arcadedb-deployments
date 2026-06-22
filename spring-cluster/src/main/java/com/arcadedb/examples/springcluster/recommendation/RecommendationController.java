@@ -1,12 +1,16 @@
 package com.arcadedb.examples.springcluster.recommendation;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/api/recommendations")
@@ -46,5 +50,12 @@ public class RecommendationController {
   @GetMapping("/hybrid/{userId}")
   public Map<String, Object> hybrid(@PathVariable String userId) {
     return service.hybrid(userId);
+  }
+
+  /** A missing user/product (no stored embedding or rows) maps to 404 rather than 500. */
+  @ExceptionHandler(NoSuchElementException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public Map<String, String> handleNotFound(NoSuchElementException ex) {
+    return Map.of("error", ex.getMessage());
   }
 }

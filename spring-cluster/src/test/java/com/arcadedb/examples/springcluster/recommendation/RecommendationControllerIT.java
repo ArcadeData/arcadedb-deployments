@@ -36,4 +36,10 @@ class RecommendationControllerIT {
     assertEquals(HttpStatus.OK, resp.getStatusCode());
     assertTrue(resp.getBody().contains("Running Shoes"), resp.getBody());
   }
+
+  @Test
+  void unknownProductReturnsNotFound() {
+    ResponseEntity<String> resp = rest.getForEntity("/api/recommendations/similar/NoSuchProduct", String.class);
+    assertEquals(HttpStatus.NOT_FOUND, resp.getStatusCode());
+  }
 }

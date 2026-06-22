@@ -118,11 +118,11 @@ public class RecommendationService {
         // Guard against null embedding (e.g. follower before replication delivers data).
         List<?> raw = rs.next().getProperty("embedding");
         if (raw != null) {
-          return raw.stream().map(v -> ((Number) v).doubleValue()).collect(Collectors.toList());
+          return raw.stream().map(v -> ((Number) v).doubleValue()).toList();
         }
       }
     }
-    throw new NoSuchElementException("No embedding found for " + type);
+    throw new NoSuchElementException("No embedding found for " + type + " with key: " + keyValue);
   }
 
   private static String formatVector(List<Double> vector) {
