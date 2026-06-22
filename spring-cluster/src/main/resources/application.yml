@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: spring-cluster
+server:
+  port: 8080
+arcadedb:
+  node-name: ${NODE_NAME:app-0}
+  server-list: ${HA_SERVER_LIST:app-0:2434:2480}
+  root-password: ${ARCADEDB_PASS:arcadedb}
+  database-name: ${ARCADEDB_DATABASE:RecommendationEngine}
+  data-path: ${ARCADEDB_DATA_PATH:./target/arcadedb}
+  http-port: ${ARCADEDB_HTTP_PORT:2480}
+  raft-port: ${ARCADEDB_RAFT_PORT:2434}
+logging:
+  level:
+    com.arcadedb: INFO
