@@ -54,7 +54,7 @@ public class ClusterBootstrap implements ApplicationRunner {
         applyScript(db, "classpath:data.sql");
         db.commit();
         log.info("Seeded sample data on leader '{}'", props.getNodeName());
-      } catch (RuntimeException e) {
+      } catch (Exception e) {
         db.rollback();
         throw e;
       }
@@ -78,6 +78,7 @@ public class ClusterBootstrap implements ApplicationRunner {
   private void applyScript(ServerDatabase db, String location) throws IOException {
     String content = resourceLoader.getResource(location)
         .getContentAsString(StandardCharsets.UTF_8);
+    // Naive split: every ';' terminates a statement. Safe for our scripts (no ';' inside string literals or the LSM_VECTOR METADATA block).
     for (String raw : content.split(";")) {
       String stmt = Arrays.stream(raw.split("\n"))
           .filter(line -> !line.strip().startsWith("--"))

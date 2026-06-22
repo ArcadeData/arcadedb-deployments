@@ -34,5 +34,6 @@ class ClusterBootstrapIT {
     bootstrap.run((ApplicationArguments) null);
     assertEquals(5, db.countType("User", false));
     assertEquals(10, db.countType("Product", false));
+    assertEquals(5, db.countType("Show", false));
   }
 }
