@@ -1,0 +1,71 @@
+services:
+  app-0:
+    build: .
+    image: arcadedb-spring-cluster
+    container_name: app-0
+    environment:
+      NODE_NAME: app-0
+      HA_SERVER_LIST: "app-0:2434:2480,app-1:2434:2480,app-2:2434:2480"
+      ARCADEDB_PASS: arcadedb
+      ARCADEDB_DATA_PATH: /app/data
+    ports:
+      - "8080:8080"
+    volumes:
+      - app0-data:/app/data
+    networks:
+      - arcadedb-cluster
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app-1:
+    build: .
+    image: arcadedb-spring-cluster
+    container_name: app-1
+    environment:
+      NODE_NAME: app-1
+      HA_SERVER_LIST: "app-0:2434:2480,app-1:2434:2480,app-2:2434:2480"
+      ARCADEDB_PASS: arcadedb
+      ARCADEDB_DATA_PATH: /app/data
+    ports:
+      - "8081:8080"
+    volumes:
+      - app1-data:/app/data
+    networks:
+      - arcadedb-cluster
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app-2:
+    build: .
+    image: arcadedb-spring-cluster
+    container_name: app-2
+    environment:
+      NODE_NAME: app-2
+      HA_SERVER_LIST: "app-0:2434:2480,app-1:2434:2480,app-2:2434:2480"
+      ARCADEDB_PASS: arcadedb
+      ARCADEDB_DATA_PATH: /app/data
+    ports:
+      - "8082:8080"
+    volumes:
+      - app2-data:/app/data
+    networks:
+      - arcadedb-cluster
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  app0-data:
+  app1-data:
+  app2-data:
+
+networks:
+  arcadedb-cluster:

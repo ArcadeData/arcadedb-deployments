@@ -2,6 +2,7 @@ package com.arcadedb.examples.springcluster.bootstrap;
 
 import com.arcadedb.examples.springcluster.config.EmbeddedArcadeDbServer;
 import com.arcadedb.examples.springcluster.config.EmbeddedServerProperties;
+import com.arcadedb.server.HAReplicatedDatabase;
 import com.arcadedb.server.ServerDatabase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,14 @@ public class ClusterBootstrap implements ApplicationRunner {
     }
 
     ServerDatabase db = embedded.server().getOrCreateDatabase(props.getDatabaseName());
+    // In HA mode the DB is created locally on the leader; replicas receive it via Raft.
+    // Without calling createInReplicas(), followers receive schema entries for a DB that
+    // does not yet exist on their side, causing a crash. createInReplicas() sends an
+    // INSTALL_DATABASE_ENTRY to all peers so they create the DB before schema is applied.
+    if (db.getWrappedDatabaseInstance() instanceof HAReplicatedDatabase haDb) {
+      log.info("Broadcasting DB creation to replicas on leader '{}'", props.getNodeName());
+      haDb.createInReplicas();
+    }
     applyScript(db, "classpath:schema.sql");
 
     if (db.countType("User", false) == 0) {
