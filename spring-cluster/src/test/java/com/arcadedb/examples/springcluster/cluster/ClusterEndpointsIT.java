@@ -6,8 +6,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 // Tests use 'localhost' (not app-0) because the new Ratis Raft needs a DNS-resolvable host; production compose uses Docker-resolvable app-0/1/2.
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -33,10 +31,9 @@ class ClusterEndpointsIT {
     rest.get().uri("/api/cluster/status")
         .exchange()
         .expectStatus().isOk()
-        .expectBody(String.class).value(body -> {
-          assertTrue(body.contains("\"node\":\"localhost\""), body);
-          assertTrue(body.contains("\"leader\":true"), body);
-        });
+        .expectBody()
+        .jsonPath("$.node").isEqualTo("localhost")
+        .jsonPath("$.leader").isEqualTo(true);
   }
 
   @Test
@@ -44,6 +41,7 @@ class ClusterEndpointsIT {
     rest.get().uri("/api/health")
         .exchange()
         .expectStatus().isOk()
-        .expectBody(String.class).value(body -> assertTrue(body.contains("\"status\":\"UP\""), body));
+        .expectBody()
+        .jsonPath("$.status").isEqualTo("UP");
   }
 }

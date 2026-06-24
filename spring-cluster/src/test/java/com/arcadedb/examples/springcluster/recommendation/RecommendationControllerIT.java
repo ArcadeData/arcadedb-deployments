@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -32,7 +32,7 @@ class RecommendationControllerIT {
     rest.get().uri("/api/recommendations/collaborative/u1")
         .exchange()
         .expectStatus().isOk()
-        .expectBody(String.class).value(body -> assertTrue(body.contains("Running Shoes"), body));
+        .expectBody(String.class).value(body -> assertThat(body).contains("Running Shoes"));
   }
 
   @Test
@@ -40,7 +40,7 @@ class RecommendationControllerIT {
     rest.get().uri("/api/recommendations/trending")
         .exchange()
         .expectStatus().isOk()
-        .expectBody(String.class).value(body -> assertTrue(body.contains("Running Shoes"), body));
+        .expectBody(String.class).value(body -> assertThat(body).contains("Running Shoes"));
   }
 
   @Test
