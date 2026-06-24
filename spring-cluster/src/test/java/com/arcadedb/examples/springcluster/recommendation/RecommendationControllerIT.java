@@ -1,13 +1,11 @@
 package com.arcadedb.examples.springcluster.recommendation;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.web.servlet.client.RestTestClient;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(
@@ -21,25 +19,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     })
 class RecommendationControllerIT {
 
-  @Autowired TestRestTemplate rest;
+  @LocalServerPort int port;
+  RestTestClient rest;
+
+  @BeforeEach
+  void setUp() {
+    rest = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+  }
 
   @Test
   void collaborativeEndpointReturnsRunningShoes() {
-    ResponseEntity<String> resp = rest.getForEntity("/api/recommendations/collaborative/u1", String.class);
-    assertEquals(HttpStatus.OK, resp.getStatusCode());
-    assertTrue(resp.getBody().contains("Running Shoes"), resp.getBody());
+    rest.get().uri("/api/recommendations/collaborative/u1")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody(String.class).value(body -> assertTrue(body.contains("Running Shoes"), body));
   }
 
   @Test
   void trendingEndpointReturnsOk() {
-    ResponseEntity<String> resp = rest.getForEntity("/api/recommendations/trending", String.class);
-    assertEquals(HttpStatus.OK, resp.getStatusCode());
-    assertTrue(resp.getBody().contains("Running Shoes"), resp.getBody());
+    rest.get().uri("/api/recommendations/trending")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody(String.class).value(body -> assertTrue(body.contains("Running Shoes"), body));
   }
 
   @Test
   void unknownProductReturnsNotFound() {
-    ResponseEntity<String> resp = rest.getForEntity("/api/recommendations/similar/NoSuchProduct", String.class);
-    assertEquals(HttpStatus.NOT_FOUND, resp.getStatusCode());
+    rest.get().uri("/api/recommendations/similar/NoSuchProduct")
+        .exchange()
+        .expectStatus().isNotFound();
   }
 }
