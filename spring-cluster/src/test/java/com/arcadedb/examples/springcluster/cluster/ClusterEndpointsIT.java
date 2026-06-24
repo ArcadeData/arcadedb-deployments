@@ -1,14 +1,10 @@
 package com.arcadedb.examples.springcluster.cluster;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.web.servlet.client.RestTestClient;
 
 // Tests use 'localhost' (not app-0) because the new Ratis Raft needs a DNS-resolvable host; production compose uses Docker-resolvable app-0/1/2.
 @SpringBootTest(
@@ -22,20 +18,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     })
 class ClusterEndpointsIT {
 
-  @Autowired TestRestTemplate rest;
+  @LocalServerPort int port;
+  RestTestClient rest;
+
+  @BeforeEach
+  void setUp() {
+    rest = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+  }
 
   @Test
   void statusReportsThisNodeAsLeader() {
-    ResponseEntity<String> resp = rest.getForEntity("/api/cluster/status", String.class);
-    assertEquals(HttpStatus.OK, resp.getStatusCode());
-    assertTrue(resp.getBody().contains("\"node\":\"localhost\""), resp.getBody());
-    assertTrue(resp.getBody().contains("\"leader\":true"), resp.getBody());
+    rest.get().uri("/api/cluster/status")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.node").isEqualTo("localhost")
+        .jsonPath("$.leader").isEqualTo(true);
   }
 
   @Test
   void healthIsUp() {
-    ResponseEntity<String> resp = rest.getForEntity("/api/health", String.class);
-    assertEquals(HttpStatus.OK, resp.getStatusCode());
-    assertTrue(resp.getBody().contains("\"status\":\"UP\""), resp.getBody());
+    rest.get().uri("/api/health")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.status").isEqualTo("UP");
   }
 }
