@@ -18,7 +18,7 @@
 
   <properties>
     <java.version>25</java.version>
-    <arcadedb.version>26.6.1</arcadedb.version>
+    <arcadedb.version>26.7.1</arcadedb.version>
   </properties>
 
   <dependencies>
