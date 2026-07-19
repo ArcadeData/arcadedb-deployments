@@ -2,6 +2,7 @@ name: Spring Cluster CI
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     paths:
       - spring-cluster/**
