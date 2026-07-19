@@ -2,6 +2,7 @@ name: HA Cluster CI
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     paths:
       - ha-cluster/**

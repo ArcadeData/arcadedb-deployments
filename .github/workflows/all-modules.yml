@@ -1,0 +1,20 @@
+name: All Modules CI
+
+# Runs every module's test workflow with a single dispatch, so the whole
+# collection of scenarios can be verified at once.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ha-cluster:
+    name: HA Cluster
+    uses: ./.github/workflows/ha-cluster.yml
+
+  kubernetes:
+    name: Kubernetes
+    uses: ./.github/workflows/kubernetes.yml
+
+  spring-cluster:
+    name: Spring Cluster
+    uses: ./.github/workflows/spring-cluster.yml
