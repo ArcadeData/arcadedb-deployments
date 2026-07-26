@@ -5,5 +5,5 @@ type: application
 version: 0.1.0
 dependencies:
   - name: arcadedb
-    version: 26.7.2
+    version: 26.7.3
     repository: https://helm.arcadedb.com
