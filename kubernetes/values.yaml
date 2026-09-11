@@ -1,8 +1,10 @@
 arcadedb:
   replicaCount: 3
 
-  image:
-    tag: "26.6.1"
+  # image.tag is deliberately not set: the chart defaults it to its own
+  # appVersion, so the server image always matches the chart version Dependabot
+  # bumps in Chart.yaml. Pinning it here lets the two drift apart, and the chart
+  # probes the server with endpoints that only exist from its appVersion on.
 
   service:
     http:
