@@ -1,10 +1,17 @@
 name: All Modules CI
 
-# Runs every module's test workflow with a single dispatch, so the whole
-# collection of scenarios can be verified at once.
+# Runs every module's test workflow at once, so the whole collection of
+# scenarios is verified together: on demand, on every merge to main, and once a
+# week to catch breakage coming from the upstream images and charts rather than
+# from a change in this repository.
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 4 * * 1" # every Monday at 04:00 UTC
 
 jobs:
   ha-cluster:
