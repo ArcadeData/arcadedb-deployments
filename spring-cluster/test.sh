@@ -19,11 +19,26 @@ fi
 echo "  PASS: exactly one leader"
 
 echo "Check 2: identical collaborative reads across all nodes (replication)"
-r0=$(curl -sf "$n0/api/recommendations/collaborative/u1" | jq -S .)
-r1=$(curl -sf "$n1/api/recommendations/collaborative/u1" | jq -S .)
-r2=$(curl -sf "$n2/api/recommendations/collaborative/u1" | jq -S .)
-if [ "$r0" != "$r1" ] || [ "$r1" != "$r2" ]; then
-  echo "  FAIL: reads differ across nodes" >&2
+# Replication is asynchronous: a follower can still be empty, or serve an error,
+# for a moment after the leader commits the seed. Retry until the three nodes
+# agree, and only fail if they never do.
+read_node() {
+  curl -sf "$1/api/recommendations/collaborative/u1" 2>/dev/null | jq -S . 2>/dev/null || echo "unavailable"
+}
+for i in $(seq 1 30); do
+  r0=$(read_node "$n0")
+  r1=$(read_node "$n1")
+  r2=$(read_node "$n2")
+  if [ "$r0" = "$r1" ] && [ "$r1" = "$r2" ] && [ "$r0" != "unavailable" ] && [ "$r0" != "[]" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ "$r0" != "$r1" ] || [ "$r1" != "$r2" ] || [ "$r0" = "unavailable" ] || [ "$r0" = "[]" ]; then
+  echo "  FAIL: reads did not converge across nodes" >&2
+  echo "        n0: $r0" >&2
+  echo "        n1: $r1" >&2
+  echo "        n2: $r2" >&2
   exit 1
 fi
 echo "  PASS: identical reads on all 3 nodes"
