@@ -69,11 +69,27 @@ query_with_retry() {
 echo "=== ArcadeDB Kubernetes HA Cluster Test ==="
 echo ""
 
+# The create-database call is answered as soon as the leader commits the Raft
+# install-database entry. The node behind the port-forward is usually a
+# follower, and it applies that entry a moment later: until it does, every
+# command on the new database is rejected with "Database '<db>' is not
+# available". Wait for the database to be open on the node we are talking to.
+wait_for_database() {
+    local attempt
+    for attempt in $(seq 1 30); do
+        query_on "select from schema:types" > /dev/null 2>&1 && return 0
+        sleep 1
+    done
+    echo "ERROR: database $DB is not available on the node behind the port-forward"
+    return 1
+}
+
 echo "Creating test database ..."
 curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
     -H "Content-Type: application/json" \
     -d "{\"command\":\"create database $DB\"}" \
     "$ARCADEDB_URL/api/v1/server" > /dev/null
+wait_for_database
 
 command_on "create document type Message" > /dev/null
 command_on "insert into Message set text = 'hello-k8s'" > /dev/null
