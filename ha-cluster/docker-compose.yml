@@ -2,7 +2,7 @@ services:
   # ArcadeDB HA (v26.4.2+) requires server names with a numeric suffix (e.g., "node-0")
   # for Raft peer identification. Names like "node1" cause an IllegalArgumentException.
   node-0:
-    image: arcadedata/arcadedb:26.7.3
+    image: arcadedata/arcadedb:26.9.1
     environment:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node-0
@@ -25,7 +25,7 @@ services:
           - node-0
 
   node-1:
-    image: arcadedata/arcadedb:26.7.3
+    image: arcadedata/arcadedb:26.9.1
     environment:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node-1
@@ -48,7 +48,7 @@ services:
           - node-1
 
   node-2:
-    image: arcadedata/arcadedb:26.7.3
+    image: arcadedata/arcadedb:26.9.1
     environment:
       JAVA_OPTS: >-
         -Darcadedb.server.name=node-2
