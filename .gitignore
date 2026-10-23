@@ -23,3 +23,7 @@ kubernetes/.port-forward.pid
 
 # Spring Cluster scenario (ArcadeDB embedded test logs)
 spring-cluster/log/
+
+# Azure SeaweedFS scenario
+azure-seaweedfs/charts/
+azure-seaweedfs/.port-forward.pid

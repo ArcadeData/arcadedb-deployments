@@ -7,3 +7,10 @@ dependencies:
   - name: seaweedfs
     version: 4.48.0
     repository: https://seaweedfs.github.io/seaweedfs/helm
+  - name: seaweedfs-csi-driver
+    version: 0.2.40
+    repository: https://seaweedfs.github.io/seaweedfs-csi-driver/helm
+  - name: arcadedb
+    version: 26.9.1
+    repository: https://helm.arcadedb.com
+    condition: arcadedb.enabled

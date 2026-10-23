@@ -3,6 +3,10 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+ARCADEDB_USER="${ARCADEDB_USER:-root}"
+ARCADEDB_PASS="${ARCADEDB_PASS:-arcadedb}"
+ARCADEDB_URL="${ARCADEDB_URL:-http://localhost:2480}"
+DB="azure_test_$$"
 FLOCI_URL="http://floci-az:4577/devstoreaccount1"
 CONTAINER="arcadedb"
 FILER_URL="http://seaweedfs-filer:8888"
@@ -41,6 +45,10 @@ incluster_curl() {
 }
 
 cleanup() {
+    curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+        -H "Content-Type: application/json" \
+        -d "{\"command\":\"drop database $DB\"}" \
+        "$ARCADEDB_URL/api/v1/server" > /dev/null 2>&1 || true
     kubectl delete pod "$TOOLBOX" --ignore-not-found --wait=false > /dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -94,6 +102,67 @@ wait_for_remote_sync() {
     return 1
 }
 
+command_on() {
+    local sql="$1"
+    local body
+    body=$(jq -n --arg cmd "$sql" '{"language":"sql","command":$cmd}')
+    curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+        -H "Content-Type: application/json" \
+        -d "$body" \
+        "$ARCADEDB_URL/api/v1/command/$DB"
+}
+
+query_on() {
+    local sql="$1"
+    local body
+    body=$(jq -n --arg cmd "$sql" '{"language":"sql","command":$cmd}')
+    curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+        -H "Content-Type: application/json" \
+        -d "$body" \
+        "$ARCADEDB_URL/api/v1/query/$DB"
+}
+
+query_with_retry() {
+    local expected="$1"
+    local result attempt
+    for attempt in $(seq 1 30); do
+        result="$(query_on "select text from Message where text = '$expected'" 2>/dev/null \
+            | jq -r '.result[0].text // empty' 2>/dev/null)" || result=""
+        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+        sleep 2
+    done
+    echo "${result:-}"
+    return 1
+}
+
+# The create-database call is answered as soon as the leader commits the Raft
+# install-database entry; the node behind the port-forward may apply it a
+# moment later. Wait for the database to be open on that node.
+wait_for_database() {
+    local attempt
+    for attempt in $(seq 1 30); do
+        query_on "select from schema:types" > /dev/null 2>&1 && return 0
+        sleep 1
+    done
+    echo "ERROR: database $DB is not available on the node behind the port-forward"
+    return 1
+}
+
+ha_wait_for_nodes() {
+    local expected="$1"
+    local result attempt
+    for attempt in $(seq 1 40); do
+        result=$(curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+            "$ARCADEDB_URL/api/v1/server?mode=cluster" \
+            | jq '(.ha.network.replicas | length) + 1' 2>/dev/null) \
+            || result=0
+        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+        sleep 3
+    done
+    echo "${result:-0}"
+    return 1
+}
+
 echo "=== ArcadeDB on SeaweedFS + Azure Blob Test ==="
 echo ""
 
@@ -105,6 +174,32 @@ wait_for_remote_sync || true
 check "canary blob in floci-az" "$(blob_list | grep -c '^_canary/hello.txt$' || true)" "1"
 check "canary content" "$(incluster_curl "$FLOCI_URL/$CONTAINER/_canary/hello.txt" || true)" "hello-azure"
 incluster_curl -X DELETE "$FILER_URL$MOUNT_DIR/_canary/?recursive=true" > /dev/null || true
+
+echo ""
+echo "Creating test database ..."
+curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+    -H "Content-Type: application/json" \
+    -d "{\"command\":\"create database $DB\"}" \
+    "$ARCADEDB_URL/api/v1/server" > /dev/null || true
+wait_for_database || true
+
+command_on "create document type Message" > /dev/null || true
+command_on "insert into Message set text = 'hello-azure'" > /dev/null || true
+
+echo "Reading record back ..."
+check "record readable from cluster" "$(query_with_retry hello-azure || true)" "hello-azure"
+check "3 HA nodes online" "$(ha_wait_for_nodes 3 || true)" "3"
+
+echo ""
+echo "ArcadeDB files in Blob ..."
+wait_for_remote_sync || true
+BLOBS="$(blob_list)"
+for n in 0 1 2; do
+    check "replica $n database files in Blob" \
+        "$(echo "$BLOBS" | grep -q "^arcadedb-$n/data/$DB/" && echo yes || echo no)" "yes"
+    check "replica $n raft log in Blob" \
+        "$(echo "$BLOBS" | grep -q "^arcadedb-$n/raft/." && echo yes || echo no)" "yes"
+done
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
