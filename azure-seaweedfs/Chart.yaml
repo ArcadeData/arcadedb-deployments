@@ -1,0 +1,9 @@
+apiVersion: v2
+name: arcadedb-azure-seaweedfs
+description: Wrapper chart for the ArcadeDB on SeaweedFS + (emulated) Azure Blob showcase scenario
+type: application
+version: 0.1.0
+dependencies:
+  - name: seaweedfs
+    version: 4.48.0
+    repository: https://seaweedfs.github.io/seaweedfs/helm

@@ -1,0 +1,73 @@
+# floci-az emulates Azure Blob Storage. SharedKey signatures are not validated,
+# so these are the well-known Azurite development credentials, obviously fake.
+flociAz:
+  image: floci/floci-az:0.15.0
+  accountName: devstoreaccount1
+  accountKey: Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
+  container: arcadedb
+  # Fetches floci-az's self-signed certificate before SeaweedFS starts.
+  caFetchImage: curlimages/curl:8.10.1
+
+# Pushes every change under the remote-mounted directory to Blob. Keep the
+# image tag equal to the seaweedfs chart's appVersion.
+remoteSync:
+  image: chrislusf/seaweedfs:4.48
+  dir: /buckets/arcadedb
+
+seaweedfs:
+  fullnameOverride: seaweedfs
+
+  # Every SeaweedFS component keeps its state on emptyDir: deleting the pods
+  # wipes SeaweedFS completely, leaving floci-az as the only copy of the data.
+  # test.sh relies on this to rebuild the cluster from Blob alone.
+  master:
+    replicas: 1
+    data:
+      type: emptyDir
+    logs:
+      type: emptyDir
+
+  volume:
+    replicas: 1
+    dataDirs:
+      - name: data1
+        type: emptyDir
+        maxVolumes: 0
+    logs:
+      type: emptyDir
+
+  filer:
+    replicas: 1
+    # SeaweedFS refuses a plain-http Azure endpoint, so floci-az runs with TLS
+    # and a self-signed certificate it generates at startup. Fetch it before
+    # the filer starts and add it to the trusted roots. weed shell commands run
+    # inside this pod (remote-setup.sh), so they trust it too.
+    initContainers: |
+      - name: fetch-floci-ca
+        image: curlimages/curl:8.10.1
+        command:
+          - curl
+          - -sSf
+          - --retry
+          - "60"
+          - --retry-all-errors
+          - --retry-delay
+          - "2"
+          - -o
+          - /floci-ca/floci-az.pem
+          - http://floci-az:4577/_floci/tls-cert
+        volumeMounts:
+          - name: floci-ca
+            mountPath: /floci-ca
+    extraVolumes: |
+      - name: floci-ca
+        emptyDir: {}
+    extraVolumeMounts: |
+      - name: floci-ca
+        mountPath: /floci-ca
+    extraEnvironmentVars:
+      SSL_CERT_DIR: /etc/ssl/certs:/floci-ca
+    data:
+      type: emptyDir
+    logs:
+      type: emptyDir
