@@ -1,0 +1,12 @@
+dependencies:
+- name: seaweedfs
+  repository: https://seaweedfs.github.io/seaweedfs/helm
+  version: 4.48.0
+- name: seaweedfs-csi-driver
+  repository: https://seaweedfs.github.io/seaweedfs-csi-driver/helm
+  version: 0.2.40
+- name: arcadedb
+  repository: https://helm.arcadedb.com
+  version: 26.9.1
+digest: sha256:9fb204c7882bbd2621fd97f9a2a197a94ac45efbb0b1aad6a23b57c20a452dc0
+generated: "2026-10-23T19:49:57.828091+02:00"
