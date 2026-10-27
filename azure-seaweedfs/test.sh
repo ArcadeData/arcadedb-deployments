@@ -13,6 +13,9 @@ FILER_URL="http://seaweedfs-filer:8888"
 MOUNT_DIR="/buckets/arcadedb"
 TOOLBOX="az-toolbox"
 TOOLBOX_IMAGE="curlimages/curl:8.10.1"
+# Remote sync uploads whole files, so every append to a Raft log segment or a
+# WAL file re-uploads the object, and Blob trails the filer by minutes.
+SYNC_TIMEOUT_SECONDS="${SYNC_TIMEOUT_SECONDS:-600}"
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -91,13 +94,14 @@ filer_put() {
 # Remote sync is asynchronous. Before trusting Blob, wait until every regular
 # file on the filer has a blob with the same name and size.
 wait_for_remote_sync() {
-    local attempt missing
-    for attempt in $(seq 1 60); do
+    local deadline missing
+    deadline=$(( $(date +%s) + SYNC_TIMEOUT_SECONDS ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
         missing=$(comm -23 <(filer_list_sizes | sort) <(blob_list_sizes | sort))
         [ -z "$missing" ] && return 0
-        sleep 2
+        sleep 5
     done
-    echo "ERROR: remote sync did not catch up; not yet in Blob:"
+    echo "ERROR: remote sync did not catch up in ${SYNC_TIMEOUT_SECONDS}s; not yet in Blob:"
     echo "$missing"
     return 1
 }
@@ -192,7 +196,7 @@ check "3 HA nodes online" "$(ha_wait_for_nodes 3 || true)" "3"
 
 echo ""
 echo "ArcadeDB files in Blob ..."
-wait_for_remote_sync || true
+check "Blob caught up with the filer" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
 BLOBS="$(blob_list)"
 for n in 0 1 2; do
     check "replica $n database files in Blob" \
