@@ -11,7 +11,7 @@ flociAz:
 # Pushes every change under the remote-mounted directory to Blob. Keep the
 # image tag equal to the seaweedfs chart's appVersion.
 remoteSync:
-  image: chrislusf/seaweedfs:4.48
+  image: chrislusf/seaweedfs:4.51
   dir: /buckets/arcadedb
 
 seaweedfs:
