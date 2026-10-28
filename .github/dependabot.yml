@@ -24,6 +24,14 @@ updates:
     labels:
       - "dependencies"
 
+  - package-ecosystem: "helm"
+    directory: "/azure-seaweedfs"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    labels:
+      - "dependencies"
+
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:

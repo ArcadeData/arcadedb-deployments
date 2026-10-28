@@ -1,0 +1,71 @@
+name: Azure SeaweedFS CI
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    paths:
+      - azure-seaweedfs/**
+      - .github/workflows/azure-seaweedfs.yml
+  pull_request:
+    paths:
+      - azure-seaweedfs/**
+      - .github/workflows/azure-seaweedfs.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install kind
+        run: |
+          curl -sLo /tmp/kind \
+            https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x /tmp/kind
+          sudo mv /tmp/kind /usr/local/bin/kind
+          kind version
+
+      - name: Install Helm
+        run: |
+          curl -sSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz \
+            | tar xz -C /tmp
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version
+
+      - name: Start cluster
+        run: ./azure-seaweedfs/start.sh
+
+      - name: Test cluster
+        run: ./azure-seaweedfs/test.sh
+
+      - name: Debug cluster state
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n default -o wide || true
+          echo "=== PVs and PVCs ==="
+          kubectl get pv,pvc -n default || true
+          for pod in arcadedb-0 arcadedb-1 arcadedb-2; do
+            echo "=== $pod logs ==="
+            kubectl logs "$pod" -n default --tail=80 || true
+          done
+          echo "=== seaweedfs-filer logs ==="
+          kubectl logs seaweedfs-filer-0 -c seaweedfs -n default --tail=80 || true
+          echo "=== seaweedfs-volume logs ==="
+          kubectl logs seaweedfs-volume-0 -n default --tail=80 || true
+          echo "=== remote-sync logs ==="
+          kubectl logs deployment/seaweedfs-remote-sync -n default --tail=80 || true
+          echo "=== CSI mount logs ==="
+          kubectl logs -l app=arcadedb-mount -n default --tail=80 || true
+          echo "=== floci-az logs ==="
+          kubectl logs deployment/floci-az -n default --tail=80 || true
+
+      - name: Tear down
+        if: always()
+        run: kind delete cluster --name arcadedb-azure

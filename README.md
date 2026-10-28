@@ -12,6 +12,7 @@ from single-node development setups to production-grade HA clusters.
 
 | Scenario | Description | Orchestrator |
 |----------|-------------|--------------|
+| [Azure SeaweedFS](./azure-seaweedfs/) | 3-node HA cluster on SeaweedFS, tiered to (emulated) Azure Blob via floci-az | Kubernetes / Helm |
 | [HA Cluster](./ha-cluster/) | 3-node high-availability cluster with Raft consensus | Docker Compose |
 | [Kubernetes](./kubernetes/) | 3-node HA cluster deployed via Helm on a local kind cluster | Kubernetes / Helm |
 | [Spring Cluster](./spring-cluster/) | 3-node embedded ArcadeDB HA cluster inside Spring Boot apps, serving the recommendation engine over REST | Docker Compose |
