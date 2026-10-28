@@ -92,12 +92,14 @@ filer_put() {
 }
 
 # Remote sync is asynchronous. Before trusting Blob, wait until every regular
-# file on the filer has a blob with the same name and size.
+# file on the filer has a blob with the same name and size. Empty files are
+# left out: remote sync never uploads them (ArcadeDB's only one is the
+# database.lck lock file, which it recreates on open).
 wait_for_remote_sync() {
     local deadline missing
     deadline=$(( $(date +%s) + SYNC_TIMEOUT_SECONDS ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        missing=$(comm -23 <(filer_list_sizes | sort) <(blob_list_sizes | sort))
+        missing=$(comm -23 <(filer_list_sizes | grep -v " 0$" | sort) <(blob_list_sizes | sort))
         [ -z "$missing" ] && return 0
         sleep 5
     done
