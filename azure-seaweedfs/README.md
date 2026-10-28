@@ -43,7 +43,7 @@ Read path after a rebuild: the filer knows the file only from the Blob listing; 
 # Start everything (kind cluster, floci-az, SeaweedFS, remote mount, ArcadeDB, port-forward)
 ./start.sh
 
-# Verify (takes several minutes: it waits for Blob to catch up, twice)
+# Verify (takes several minutes: it waits for Blob to catch up after each step)
 ./test.sh
 
 # Tear down
@@ -54,9 +54,9 @@ Read path after a rebuild: the filer knows the file only from the Blob listing; 
 
 1. **Remote sync works:** a file written to the filer appears in Blob with the same content.
 2. **Write and read through HA:** creates a database, inserts a record, reads it back, sees 3 nodes.
-3. **ArcadeDB files are in Blob:** waits until every file on the filer is in Blob with the same size, then checks each replica's database files and Raft log.
+3. **ArcadeDB files are in Blob:** waits until Blob mirrors the filer (every file there with the same size and uploaded after its last change, nothing left over from deleted files), then checks each replica's database files and Raft log.
 4. **Leader failover:** deletes the leader pod; a new leader is elected, the record is still readable, and the third node rejoins.
-5. **Cold restart from Blob alone:** scales ArcadeDB to 0, deletes every SeaweedFS pod (all their state is on `emptyDir`), the CSI mount service and remote sync, checks the filer is empty, mounts the Blob container again, and scales ArcadeDB back to 3. The cluster elects a leader, the record is read back, and a new write reaches Blob.
+5. **Cold restart from Blob alone:** scales ArcadeDB to 0, waits until Blob has everything the shutdown wrote, deletes every SeaweedFS pod (all their state is on `emptyDir`), the CSI mount service and remote sync, checks the filer is empty, mounts the Blob container again, and scales ArcadeDB back to 3. The cluster elects a leader, the record is read back, and a new write reaches Blob.
 
 ## Caveats
 

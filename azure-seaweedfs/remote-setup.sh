@@ -38,6 +38,14 @@ else
     echo "remote.mount -dir=${MOUNT_DIR} -remote=${REMOTE_NAME}/${CONTAINER}" | weed_shell
 fi
 
+# Check the mount itself before creating anything under it: a directory
+# created while nothing is mounted would make every later remote.mount refuse
+# the now non-empty directory.
+if ! echo "remote.mount" | weed_shell | grep -q "\"${MOUNT_DIR}\""; then
+    echo "ERROR: ${MOUNT_DIR} is not mounted; see the remote.configure / remote.mount output above"
+    exit 1
+fi
+
 # Blob has no directories, so an empty replica directory does not survive a
 # rebuild from Blob. Create all of them on every run; fs.mkdir is a no-op when
 # the directory exists.
