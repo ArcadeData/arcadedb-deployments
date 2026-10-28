@@ -1,0 +1,155 @@
+# Azurite is Microsoft's Azure Storage emulator. These are its well-known
+# development credentials, obviously fake.
+azurite:
+  image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+  accountName: devstoreaccount1
+  accountKey: Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
+  container: arcadedb
+  # Generates Azurite's self-signed TLS certificate at startup.
+  opensslImage: alpine/openssl:3.3.2
+  # Serves that certificate to the SeaweedFS pods.
+  caServerImage: busybox:1.36
+  # Fetches the certificate before SeaweedFS starts.
+  caFetchImage: curlimages/curl:8.10.1
+
+# Pushes every change under the remote-mounted directory to Blob. Keep the
+# image tag equal to the seaweedfs chart's appVersion.
+remoteSync:
+  image: chrislusf/seaweedfs:4.51
+  dir: /buckets/arcadedb
+
+seaweedfs:
+  fullnameOverride: seaweedfs
+
+  # Every SeaweedFS component keeps its state on emptyDir: deleting the pods
+  # wipes SeaweedFS completely, leaving Azurite as the only copy of the data.
+  # test.sh relies on this to rebuild the cluster from Blob alone.
+  master:
+    replicas: 1
+    # Small volumes: SeaweedFS grows several volumes per collection, and the
+    # default size would exhaust a laptop or CI runner disk before the first
+    # write (the mount then fails every write with "no free volumes").
+    volumeSizeLimitMB: 64
+    data:
+      type: emptyDir
+    logs:
+      type: emptyDir
+
+  volume:
+    replicas: 1
+    # Azurite sits on a private cluster IP, which SeaweedFS treats as an SSRF
+    # risk and refuses to fetch remote-only data from. Allow it: the emulator is
+    # the "cloud" here. Against real Azure this flag is not needed.
+    extraArgs:
+      - -volume.allowUntrustedRemoteEndpoints
+    dataDirs:
+      - name: data1
+        type: emptyDir
+        maxVolumes: 100
+    logs:
+      type: emptyDir
+
+  filer:
+    replicas: 1
+    # Same reason as the volume server. Without it, renaming a file over one
+    # that already exists in Blob (Raft's raft-meta.tmp -> raft-meta) fails
+    # with an I/O error, because the filer refuses to delete the old blob.
+    extraArgs:
+      - -allowUntrustedRemoteEndpoints
+    # SeaweedFS refuses a plain-http Azure endpoint, so Azurite runs with TLS
+    # and a self-signed certificate generated at startup. Fetch it before the
+    # filer starts and add it to the trusted roots. weed shell commands run
+    # inside this pod (remote-setup.sh), so they trust it too.
+    initContainers: |
+      - name: fetch-azurite-ca
+        image: curlimages/curl:8.10.1
+        command:
+          - curl
+          - -sSf
+          - --retry
+          - "60"
+          - --retry-all-errors
+          - --retry-delay
+          - "2"
+          - -o
+          - /azurite-ca/azurite.crt
+          - http://azurite:8080/azurite.crt
+        volumeMounts:
+          - name: azurite-ca
+            mountPath: /azurite-ca
+    extraVolumes: |
+      - name: azurite-ca
+        emptyDir: {}
+    extraVolumeMounts: |
+      - name: azurite-ca
+        mountPath: /azurite-ca
+    extraEnvironmentVars:
+      SSL_CERT_DIR: /etc/ssl/certs:/azurite-ca
+    data:
+      type: emptyDir
+    logs:
+      type: emptyDir
+
+# Mounts SeaweedFS directories into pods. The FUSE privileges live in the
+# driver's node pods; ArcadeDB pods stay unprivileged.
+seaweedfs-csi-driver:
+  seaweedfsFiler: seaweedfs-filer:8888
+
+arcadedb:
+  # start.sh installs with enabled=false first, mounts the Blob container in
+  # SeaweedFS, then enables ArcadeDB. Otherwise the volume mounts create the
+  # replica directories before the remote mount, and SeaweedFS refuses to
+  # mount a Blob container over a non-empty directory.
+  enabled: true
+  replicaCount: 3
+
+  # image.tag is deliberately not set: the chart defaults it to its own
+  # appVersion, so the server image always matches the chart version Dependabot
+  # bumps in Chart.yaml. Pinning it here lets the two drift apart, and the chart
+  # probes the server with endpoints that only exist from its appVersion on.
+
+  service:
+    http:
+      type: ClusterIP   # LoadBalancer is a no-op in kind without MetalLB
+
+  credentials:
+    rootPassword:
+      secret:
+        name: arcadedb-credentials-secret
+        key: rootPassword
+
+  arcadedb:
+    extraCommands:
+      - -Darcadedb.server.mode=development
+
+  # The chart backs every directory with emptyDir by default. The database and
+  # Raft directories move to PersistentVolumeClaims instead: the StatefulSet
+  # adopts the claims that templates/volumes.yaml creates under the same names,
+  # each pinned to a fixed directory on SeaweedFS.
+  volumes:
+    - name: arcadedb-config
+      emptyDir: {}
+    - name: arcadedb-logs
+      emptyDir: {}
+    - name: arcadedb-tmp
+      emptyDir: {}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: arcadedb-data
+      spec:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: arcadedb-raft
+      spec:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
