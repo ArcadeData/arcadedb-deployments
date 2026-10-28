@@ -58,9 +58,9 @@ trap cleanup EXIT
 
 # Blob names in the floci-az container, one per line, as "<name> <size>".
 blob_list_sizes() {
-    incluster_curl "$FLOCI_URL/$CONTAINER?restype=container&comp=list" \
-        | tr '<' '\n' \
-        | awk -F'>' '$1 == "Name" { name = $2 } $1 == "Content-Length" { print name, $2 }'
+    incluster_curl "$FLOCI_URL/$CONTAINER?restype=container&comp=list" |
+        tr '<' '\n' |
+        awk -F'>' '$1 == "Name" { name = $2 } $1 == "Content-Length" { print name, $2 }'
 }
 
 blob_list() {
@@ -75,8 +75,8 @@ filer_list_sizes() {
     listing=$(incluster_curl -H "Accept: application/json" "$FILER_URL$dir/?limit=10000")
     echo "$listing" | jq -r '.Entries // [] | .[]
         | select((.Mode / 2147483648 | floor) % 2 == 0)
-        | "\(.FullPath) \(.FileSize)"' \
-        | sed "s|^$MOUNT_DIR/||"
+        | "\(.FullPath) \(.FileSize)"' |
+        sed "s|^$MOUNT_DIR/||"
     local sub
     for sub in $(echo "$listing" | jq -r '.Entries // [] | .[]
             | select((.Mode / 2147483648 | floor) % 2 == 1) | .FullPath'); do
@@ -97,7 +97,7 @@ filer_put() {
 # database.lck lock file, which it recreates on open).
 wait_for_remote_sync() {
     local deadline missing
-    deadline=$(( $(date +%s) + SYNC_TIMEOUT_SECONDS ))
+    deadline=$(($(date +%s) + SYNC_TIMEOUT_SECONDS))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         missing=$(comm -23 <(filer_list_sizes | grep -v " 0$" | sort) <(blob_list_sizes | sort))
         [ -z "$missing" ] && return 0
@@ -132,9 +132,12 @@ query_with_retry() {
     local expected="$1"
     local result attempt
     for attempt in $(seq 1 30); do
-        result="$(query_on "select text from Message where text = '$expected'" 2>/dev/null \
-            | jq -r '.result[0].text // empty' 2>/dev/null)" || result=""
-        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+        result="$(query_on "select text from Message where text = '$expected'" 2> /dev/null |
+            jq -r '.result[0].text // empty' 2> /dev/null)" || result=""
+        [ "$result" = "$expected" ] && {
+            echo "$result"
+            return 0
+        }
         sleep 2
     done
     echo "${result:-}"
@@ -159,10 +162,13 @@ ha_wait_for_nodes() {
     local result attempt
     for attempt in $(seq 1 40); do
         result=$(curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
-            "$ARCADEDB_URL/api/v1/server?mode=cluster" \
-            | jq '(.ha.network.replicas | length) + 1' 2>/dev/null) \
-            || result=0
-        [ "$result" = "$expected" ] && { echo "$result"; return 0; }
+            "$ARCADEDB_URL/api/v1/server?mode=cluster" |
+            jq '(.ha.network.replicas | length) + 1' 2> /dev/null) ||
+            result=0
+        [ "$result" = "$expected" ] && {
+            echo "$result"
+            return 0
+        }
         sleep 3
     done
     echo "${result:-0}"
@@ -173,15 +179,15 @@ ha_wait_for_nodes() {
 # port-forward ("arcadedb-1 (arcadedb-1.arcadedb...:2480)" -> "arcadedb-1").
 leader_pod() {
     curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
-        "$ARCADEDB_URL/api/v1/server?mode=cluster" \
-        | jq -r '.ha.leader // empty' | cut -d' ' -f1
+        "$ARCADEDB_URL/api/v1/server?mode=cluster" |
+        jq -r '.ha.leader // empty' | cut -d' ' -f1
 }
 
 wait_for_new_leader() {
     local old="$1"
     local leader attempt
     for attempt in $(seq 1 40); do
-        leader="$(leader_pod 2>/dev/null || true)"
+        leader="$(leader_pod 2> /dev/null || true)"
         if [ -n "$leader" ] && [ "$leader" != "$old" ]; then
             echo yes
             return 0
@@ -201,7 +207,7 @@ restart_port_forward() {
     local pid_file=".port-forward.pid"
     local target attempt
     target=$(for n in 0 1 2; do echo "arcadedb-$n"; done | grep -vx "$avoid" | head -1)
-    [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2>/dev/null || true
+    [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2> /dev/null || true
     for attempt in $(seq 1 20); do
         kubectl port-forward "pod/$target" 2480:2480 > /dev/null 2>&1 &
         echo $! > "$pid_file"
@@ -209,7 +215,7 @@ restart_port_forward() {
         if curl -sf "$ARCADEDB_URL/api/v1/ready" > /dev/null 2>&1; then
             return 0
         fi
-        kill "$(cat "$pid_file")" 2>/dev/null || true
+        kill "$(cat "$pid_file")" 2> /dev/null || true
     done
     echo "ERROR: no ArcadeDB node reachable through a new port-forward"
     return 1
@@ -295,9 +301,9 @@ for pod in seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0; do
 done
 # A fresh filer has no /buckets directory at all and answers with an empty
 # body, which counts as empty too.
-MOUNTED_ENTRIES=$(incluster_curl -H "Accept: application/json" "$FILER_URL/buckets/?limit=100" \
-    | jq -r --arg dir "$MOUNT_DIR" '[.Entries // [] | .[] | select(.FullPath == $dir)] | length' \
-    2>/dev/null || echo error)
+MOUNTED_ENTRIES=$(incluster_curl -H "Accept: application/json" "$FILER_URL/buckets/?limit=100" |
+    jq -r --arg dir "$MOUNT_DIR" '[.Entries // [] | .[] | select(.FullPath == $dir)] | length' \
+        2> /dev/null || echo error)
 check "filer is empty after the wipe" "${MOUNTED_ENTRIES:-0}" "0"
 echo "Mounting the Blob container again ..."
 ./remote-setup.sh > /dev/null
@@ -309,7 +315,7 @@ echo "Starting ArcadeDB ..."
 kubectl scale statefulset arcadedb --replicas=3 > /dev/null
 kubectl rollout status statefulset/arcadedb --timeout=600s > /dev/null || true
 restart_port_forward "" || true
-check "leader elected after cold restart" "$( [ -n "$(leader_pod || true)" ] && echo yes || echo no)" "yes"
+check "leader elected after cold restart" "$([ -n "$(leader_pod || true)" ] && echo yes || echo no)" "yes"
 check "3 HA nodes online after cold restart" "$(ha_wait_for_nodes 3 || true)" "3"
 check "record restored from Blob" "$(query_with_retry hello-azure || true)" "hello-azure"
 command_on "insert into Message set text = 'after-restore'" > /dev/null || true
