@@ -28,6 +28,12 @@ spec:
               value: "true"
             - name: FLOCI_AZ_HOSTNAME
               value: floci-az
+            # Over HTTP/2 a Put Block of a large, frequently rewritten file
+            # stalls until the client cancels it, and the stuck connection
+            # blocks every later request, so remote sync never catches up.
+            # HTTP/1.1 does not have the problem.
+            - name: QUARKUS_HTTP_HTTP2
+              value: "false"
           ports:
             - name: http
               containerPort: 4577
