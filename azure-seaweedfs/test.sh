@@ -169,6 +169,52 @@ ha_wait_for_nodes() {
     return 1
 }
 
+# Pod name of the current Raft leader, as seen by the node behind the
+# port-forward ("arcadedb-1 (arcadedb-1.arcadedb...:2480)" -> "arcadedb-1").
+leader_pod() {
+    curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
+        "$ARCADEDB_URL/api/v1/server?mode=cluster" \
+        | jq -r '.ha.leader // empty' | cut -d' ' -f1
+}
+
+wait_for_new_leader() {
+    local old="$1"
+    local leader attempt
+    for attempt in $(seq 1 40); do
+        leader="$(leader_pod 2>/dev/null || true)"
+        if [ -n "$leader" ] && [ "$leader" != "$old" ]; then
+            echo yes
+            return 0
+        fi
+        sleep 3
+    done
+    echo "no (leader: ${leader:-none})"
+    return 1
+}
+
+# kubectl port-forward to a Service sticks to the one pod it picked at start
+# and dies with it. Replace start.sh's port-forward (same PID file, so stop.sh
+# still cleans up) with one to a pod that is not being deleted, and wait until
+# it answers.
+restart_port_forward() {
+    local avoid="$1"
+    local pid_file=".port-forward.pid"
+    local target attempt
+    target=$(for n in 0 1 2; do echo "arcadedb-$n"; done | grep -vx "$avoid" | head -1)
+    [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2>/dev/null || true
+    for attempt in $(seq 1 20); do
+        kubectl port-forward "pod/$target" 2480:2480 > /dev/null 2>&1 &
+        echo $! > "$pid_file"
+        sleep 3
+        if curl -sf "$ARCADEDB_URL/api/v1/ready" > /dev/null 2>&1; then
+            return 0
+        fi
+        kill "$(cat "$pid_file")" 2>/dev/null || true
+    done
+    echo "ERROR: no ArcadeDB node reachable through a new port-forward"
+    return 1
+}
+
 echo "=== ArcadeDB on SeaweedFS + Azure Blob Test ==="
 echo ""
 
@@ -206,6 +252,18 @@ for n in 0 1 2; do
     check "replica $n raft log in Blob" \
         "$(echo "$BLOBS" | grep -q "^arcadedb-$n/raft/." && echo yes || echo no)" "yes"
 done
+
+echo ""
+echo "Leader failover ..."
+wait_for_remote_sync > /dev/null || true
+OLD_LEADER="$(leader_pod || true)"
+echo "Deleting leader pod $OLD_LEADER ..."
+kubectl delete pod "$OLD_LEADER" --wait=false > /dev/null
+restart_port_forward "$OLD_LEADER" || true
+check "new leader elected" "$(wait_for_new_leader "$OLD_LEADER" || true)" "yes"
+check "record survives failover" "$(query_with_retry hello-azure || true)" "hello-azure"
+kubectl wait --for=condition=Ready "pod/$OLD_LEADER" --timeout=180s > /dev/null || true
+check "3 HA nodes online after failover" "$(ha_wait_for_nodes 3 || true)" "3"
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
