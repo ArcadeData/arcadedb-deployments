@@ -16,12 +16,9 @@ if [ -f "${PID_FILE}" ]; then
     rm -f "${PID_FILE}"
 fi
 
-# Uninstall helm release
-if helm status arcadedb --namespace default > /dev/null 2>&1; then
-    echo "Uninstalling Helm release 'arcadedb' ..."
-    helm uninstall arcadedb --namespace default
-fi
-
+# No helm uninstall: deleting the kind cluster removes the release, and helm
+# would act on whatever cluster is the current context, which may be the
+# kubernetes/ scenario's.
 # Delete kind cluster
 echo "Deleting kind cluster '${KIND_CLUSTER}' ..."
 kind delete cluster --name "${KIND_CLUSTER}"

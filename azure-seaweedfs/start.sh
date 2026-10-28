@@ -32,6 +32,10 @@ else
     kind create cluster --name "${KIND_CLUSTER}"
 fi
 
+# Both this scenario and kubernetes/ install a release named arcadedb in the
+# default namespace. Act on this scenario's cluster only.
+kubectl config use-context "kind-${KIND_CLUSTER}" > /dev/null
+
 echo "Updating Helm dependencies ..."
 helm dependency update .
 
@@ -75,6 +79,12 @@ helm upgrade arcadedb . \
     --values values.yaml \
     --wait \
     --timeout 10m
+
+# A previous start.sh or test.sh may still hold the port.
+if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2> /dev/null; then
+    kill "$(cat "${PID_FILE}")"
+    sleep 1
+fi
 
 echo "Starting port-forward to svc/arcadedb-http on localhost:2480 ..."
 kubectl port-forward svc/arcadedb-http 2480:2480 > /dev/null &

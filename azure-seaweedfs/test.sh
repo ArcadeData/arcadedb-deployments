@@ -3,6 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+KIND_CLUSTER="${KIND_CLUSTER:-arcadedb-azure}"
 ARCADEDB_USER="${ARCADEDB_USER:-root}"
 ARCADEDB_PASS="${ARCADEDB_PASS:-arcadedb}"
 ARCADEDB_URL="${ARCADEDB_URL:-http://localhost:2480}"
@@ -56,31 +57,36 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Blob names in the floci-az container, one per line, as "<name> <size>".
-blob_list_sizes() {
+# Blobs in the floci-az container, one per line, as
+# "<name> <size> <last-modified, epoch seconds>".
+blob_state() {
     incluster_curl "$FLOCI_URL/$CONTAINER?restype=container&comp=list" |
         tr '<' '\n' |
-        awk -F'>' '$1 == "Name" { name = $2 } $1 == "Content-Length" { print name, $2 }'
+        awk -F'>' '$1 == "Name" { name = $2 } $1 == "Last-Modified" { mtime = $2 }
+            $1 == "Content-Length" { print name "\t" $2 "\t" mtime }' |
+        jq -Rr 'split("\t")
+            | "\(.[0]) \(.[1]) \(.[2] | strptime("%a, %d %b %Y %H:%M:%S GMT") | mktime)"'
 }
 
 blob_list() {
-    blob_list_sizes | cut -d' ' -f1
+    blob_state | cut -d' ' -f1
 }
 
-# Regular files under the mounted directory on the filer, as "<path> <size>",
-# path relative to the mounted directory.
-filer_list_sizes() {
+# Regular files under the mounted directory on the filer, as
+# "<path> <size> <modified, epoch seconds>", path relative to the mounted
+# directory.
+filer_state() {
     local dir="${1:-$MOUNT_DIR}"
     local listing
     listing=$(incluster_curl -H "Accept: application/json" "$FILER_URL$dir/?limit=10000")
     echo "$listing" | jq -r '.Entries // [] | .[]
         | select((.Mode / 2147483648 | floor) % 2 == 0)
-        | "\(.FullPath) \(.FileSize)"' |
+        | "\(.FullPath) \(.FileSize) \(.Mtime | sub("\\.[0-9]+"; "") | fromdateiso8601)"' |
         sed "s|^$MOUNT_DIR/||"
     local sub
     for sub in $(echo "$listing" | jq -r '.Entries // [] | .[]
             | select((.Mode / 2147483648 | floor) % 2 == 1) | .FullPath'); do
-        filer_list_sizes "$sub"
+        filer_state "$sub"
     done
 }
 
@@ -91,20 +97,39 @@ filer_put() {
         "printf '%s' '$content' | curl -sS -F file=@- '$FILER_URL$path'" > /dev/null
 }
 
-# Remote sync is asynchronous. Before trusting Blob, wait until every regular
-# file on the filer has a blob with the same name and size. Empty files are
-# left out: remote sync never uploads them (ArcadeDB's only one is the
-# database.lck lock file, which it recreates on open).
+# Remote sync is asynchronous. Before trusting Blob, wait until it mirrors the
+# filer: every regular file has a blob of the same size that was uploaded no
+# earlier than the file's last change (ArcadeDB rewrites pages in place, so the
+# size alone does not show that the latest content is there), and no ArcadeDB
+# blob is left over from a file the filer has deleted. Empty files are left
+# out: remote sync never uploads them (ArcadeDB's only one is the database.lck
+# lock file, which it recreates on open).
+remote_sync_lag() {
+    local filer blobs
+    filer=$(filer_state)
+    blobs=$(blob_state)
+    if [ -z "$filer" ] || [ -z "$blobs" ]; then
+        echo "(filer or Blob listing is empty)"
+        return
+    fi
+    awk 'NR == FNR { size[$1] = $2; mtime[$1] = $3; next }
+        $2 != 0 && (!($1 in size) || size[$1] != $2 || mtime[$1] < $3) { print $1 }' \
+        <(echo "$blobs") <(echo "$filer")
+    awk 'NR == FNR { on_filer[$1] = 1; next }
+        $1 ~ /^arcadedb-[0-9]+\// && !($1 in on_filer) { print $1 " (deleted on the filer)" }' \
+        <(echo "$filer") <(echo "$blobs")
+}
+
 wait_for_remote_sync() {
-    local deadline missing
+    local deadline lag
     deadline=$(($(date +%s) + SYNC_TIMEOUT_SECONDS))
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        missing=$(comm -23 <(filer_list_sizes | grep -v " 0$" | sort) <(blob_list_sizes | sort))
-        [ -z "$missing" ] && return 0
+        lag=$(remote_sync_lag)
+        [ -z "$lag" ] && return 0
         sleep 5
     done
     echo "ERROR: remote sync did not catch up in ${SYNC_TIMEOUT_SECONDS}s; not yet in Blob:"
-    echo "$missing"
+    echo "$lag"
     return 1
 }
 
@@ -236,6 +261,10 @@ wait_for_pod_ready() {
 echo "=== ArcadeDB on SeaweedFS + Azure Blob Test ==="
 echo ""
 
+# The test deletes and scales pods. Make sure they are this scenario's, not
+# the kubernetes/ scenario's (same release name, same namespace).
+kubectl config use-context "kind-${KIND_CLUSTER}" > /dev/null
+
 start_toolbox
 
 echo "Remote sync: filer -> floci-az Blob ..."
@@ -285,42 +314,51 @@ check "3 HA nodes online after failover" "$(ha_wait_for_nodes 3 || true)" "3"
 
 echo ""
 echo "Cold restart from Blob ..."
-check "Blob caught up before the wipe" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
+# Stop ArcadeDB first: shutting down flushes pages and rewrites WAL and Raft
+# files, and those writes must reach Blob before anything is destroyed.
 echo "Stopping ArcadeDB ..."
 kubectl scale statefulset arcadedb --replicas=0 > /dev/null
 kubectl wait --for=delete pod -l app=arcadedb --timeout=180s > /dev/null || true
-# Every SeaweedFS component, the CSI mount service and remote sync keep their
-# state on emptyDir or in memory: deleting the pods leaves Blob as the only
-# copy of the data.
-echo "Wiping SeaweedFS ..."
-kubectl delete pod seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0 > /dev/null
-kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
-kubectl delete pod -l app=arcadedb-mount > /dev/null
-for pod in seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0; do
-    wait_for_pod_ready "$pod" || true
-done
-# A fresh filer has no /buckets directory at all and answers with an empty
-# body, which counts as empty too.
-MOUNTED_ENTRIES=$(incluster_curl -H "Accept: application/json" "$FILER_URL/buckets/?limit=100" |
-    jq -r --arg dir "$MOUNT_DIR" '[.Entries // [] | .[] | select(.FullPath == $dir)] | length' \
-        2> /dev/null || echo error)
-check "filer is empty after the wipe" "${MOUNTED_ENTRIES:-0}" "0"
-echo "Mounting the Blob container again ..."
-./remote-setup.sh > /dev/null
-# Remote sync exits while nothing is mounted and may be in a long restart
-# back-off by now. Restart it so it follows the new mount right away.
-kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
-wait_for_pod_ready "$(kubectl get pod -l app=arcadedb-mount -o name | head -1 | cut -d/ -f2)" || true
-echo "Starting ArcadeDB ..."
-kubectl scale statefulset arcadedb --replicas=3 > /dev/null
-kubectl rollout status statefulset/arcadedb --timeout=600s > /dev/null || true
-restart_port_forward "" || true
-check "leader elected after cold restart" "$([ -n "$(leader_pod || true)" ] && echo yes || echo no)" "yes"
-check "3 HA nodes online after cold restart" "$(ha_wait_for_nodes 3 || true)" "3"
-check "record restored from Blob" "$(query_with_retry hello-azure || true)" "hello-azure"
-command_on "insert into Message set text = 'after-restore'" > /dev/null || true
-check "write accepted after restore" "$(query_with_retry after-restore || true)" "after-restore"
-check "writes sync to Blob after restore" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
+if ! wait_for_remote_sync >&2; then
+    # Wiping now would test the async-sync caveat, not the rebuild. Leave
+    # SeaweedFS alone and bring ArcadeDB back.
+    check "Blob caught up after ArcadeDB stopped" "no" "yes"
+    kubectl scale statefulset arcadedb --replicas=3 > /dev/null
+else
+    check "Blob caught up after ArcadeDB stopped" "yes" "yes"
+    # Every SeaweedFS component, the CSI mount service and remote sync keep
+    # their state on emptyDir or in memory: deleting the pods leaves Blob as
+    # the only copy of the data.
+    echo "Wiping SeaweedFS ..."
+    kubectl delete pod seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0 > /dev/null
+    kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
+    kubectl delete pod -l app=arcadedb-mount > /dev/null
+    for pod in seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0; do
+        wait_for_pod_ready "$pod" || true
+    done
+    # A fresh filer has no /buckets directory at all and answers with an
+    # empty body, which counts as empty too.
+    MOUNTED_ENTRIES=$(incluster_curl -H "Accept: application/json" "$FILER_URL/buckets/?limit=100" |
+        jq -r --arg dir "$MOUNT_DIR" '[.Entries // [] | .[] | select(.FullPath == $dir)] | length' \
+            2> /dev/null || echo error)
+    check "filer is empty after the wipe" "${MOUNTED_ENTRIES:-0}" "0"
+    echo "Mounting the Blob container again ..."
+    check "Blob container mounted again" "$(./remote-setup.sh >&2 && echo yes || echo no)" "yes"
+    # Remote sync exits while nothing is mounted and may be in a long restart
+    # back-off by now. Restart it so it follows the new mount right away.
+    kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
+    wait_for_pod_ready "$(kubectl get pod -l app=arcadedb-mount -o name | head -1 | cut -d/ -f2)" || true
+    echo "Starting ArcadeDB ..."
+    kubectl scale statefulset arcadedb --replicas=3 > /dev/null
+    kubectl rollout status statefulset/arcadedb --timeout=600s > /dev/null || true
+    restart_port_forward "" || true
+    check "leader elected after cold restart" "$([ -n "$(leader_pod || true)" ] && echo yes || echo no)" "yes"
+    check "3 HA nodes online after cold restart" "$(ha_wait_for_nodes 3 || true)" "3"
+    check "record restored from Blob" "$(query_with_retry hello-azure || true)" "hello-azure"
+    command_on "insert into Message set text = 'after-restore'" > /dev/null || true
+    check "write accepted after restore" "$(query_with_retry after-restore || true)" "after-restore"
+    check "writes sync to Blob after restore" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
+fi
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"

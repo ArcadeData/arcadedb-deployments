@@ -45,7 +45,8 @@ jobs:
         run: ./azure-seaweedfs/test.sh
 
       - name: Debug cluster state
-        if: failure()
+        # Also on a timeout: a remote sync that stalls ends as a cancelled job.
+        if: failure() || cancelled()
         run: |
           echo "=== Pods ==="
           kubectl get pods -n default -o wide || true
