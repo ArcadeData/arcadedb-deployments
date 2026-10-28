@@ -38,6 +38,34 @@ seaweedfs:
     # the "cloud" here. Against real Azure this flag is not needed.
     extraArgs:
       - -volume.allowUntrustedRemoteEndpoints
+    # Data that is only in Blob (after a rebuild from Blob) is downloaded by
+    # the volume server, so it needs floci-az's certificate too. See the filer
+    # below.
+    initContainers: |
+      - name: fetch-floci-ca
+        image: curlimages/curl:8.10.1
+        command:
+          - curl
+          - -sSf
+          - --retry
+          - "60"
+          - --retry-all-errors
+          - --retry-delay
+          - "2"
+          - -o
+          - /floci-ca/floci-az.pem
+          - http://floci-az:4577/_floci/tls-cert
+        volumeMounts:
+          - name: floci-ca
+            mountPath: /floci-ca
+    extraVolumes: |
+      - name: floci-ca
+        emptyDir: {}
+    extraVolumeMounts: |
+      - name: floci-ca
+        mountPath: /floci-ca
+    extraEnvironmentVars:
+      SSL_CERT_DIR: /etc/ssl/certs:/floci-ca
     dataDirs:
       - name: data1
         type: emptyDir
