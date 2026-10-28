@@ -215,6 +215,18 @@ restart_port_forward() {
     return 1
 }
 
+# A deleted StatefulSet pod comes back under the same name; wait until the new
+# one exists and is Ready.
+wait_for_pod_ready() {
+    local pod="$1"
+    local attempt
+    for attempt in $(seq 1 60); do
+        kubectl get pod "$pod" > /dev/null 2>&1 && break
+        sleep 2
+    done
+    kubectl wait --for=condition=Ready "pod/$pod" --timeout=300s > /dev/null
+}
+
 echo "=== ArcadeDB on SeaweedFS + Azure Blob Test ==="
 echo ""
 
@@ -264,6 +276,45 @@ check "new leader elected" "$(wait_for_new_leader "$OLD_LEADER" || true)" "yes"
 check "record survives failover" "$(query_with_retry hello-azure || true)" "hello-azure"
 kubectl wait --for=condition=Ready "pod/$OLD_LEADER" --timeout=180s > /dev/null || true
 check "3 HA nodes online after failover" "$(ha_wait_for_nodes 3 || true)" "3"
+
+echo ""
+echo "Cold restart from Blob ..."
+check "Blob caught up before the wipe" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
+echo "Stopping ArcadeDB ..."
+kubectl scale statefulset arcadedb --replicas=0 > /dev/null
+kubectl wait --for=delete pod -l app=arcadedb --timeout=180s > /dev/null || true
+# Every SeaweedFS component, the CSI mount service and remote sync keep their
+# state on emptyDir or in memory: deleting the pods leaves Blob as the only
+# copy of the data.
+echo "Wiping SeaweedFS ..."
+kubectl delete pod seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0 > /dev/null
+kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
+kubectl delete pod -l app=arcadedb-mount > /dev/null
+for pod in seaweedfs-master-0 seaweedfs-volume-0 seaweedfs-filer-0; do
+    wait_for_pod_ready "$pod" || true
+done
+# A fresh filer has no /buckets directory at all and answers with an empty
+# body, which counts as empty too.
+MOUNTED_ENTRIES=$(incluster_curl -H "Accept: application/json" "$FILER_URL/buckets/?limit=100" \
+    | jq -r --arg dir "$MOUNT_DIR" '[.Entries // [] | .[] | select(.FullPath == $dir)] | length' \
+    2>/dev/null || echo error)
+check "filer is empty after the wipe" "${MOUNTED_ENTRIES:-0}" "0"
+echo "Mounting the Blob container again ..."
+./remote-setup.sh > /dev/null
+# Remote sync exits while nothing is mounted and may be in a long restart
+# back-off by now. Restart it so it follows the new mount right away.
+kubectl delete pod -l app=seaweedfs-remote-sync > /dev/null
+wait_for_pod_ready "$(kubectl get pod -l app=arcadedb-mount -o name | head -1 | cut -d/ -f2)" || true
+echo "Starting ArcadeDB ..."
+kubectl scale statefulset arcadedb --replicas=3 > /dev/null
+kubectl rollout status statefulset/arcadedb --timeout=600s > /dev/null || true
+restart_port_forward "" || true
+check "leader elected after cold restart" "$( [ -n "$(leader_pod || true)" ] && echo yes || echo no)" "yes"
+check "3 HA nodes online after cold restart" "$(ha_wait_for_nodes 3 || true)" "3"
+check "record restored from Blob" "$(query_with_retry hello-azure || true)" "hello-azure"
+command_on "insert into Message set text = 'after-restore'" > /dev/null || true
+check "write accepted after restore" "$(query_with_retry after-restore || true)" "after-restore"
+check "writes sync to Blob after restore" "$(wait_for_remote_sync >&2 && echo yes || echo no)" "yes"
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"

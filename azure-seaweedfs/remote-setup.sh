@@ -18,12 +18,12 @@ MOUNT_DIR="/buckets/arcadedb"
 FILER_POD="seaweedfs-filer-0"
 
 weed_shell() {
-    kubectl exec -i "${FILER_POD}" -- \
+    kubectl exec -i "${FILER_POD}" -c seaweedfs -- \
         weed shell -master=seaweedfs-master:9333 -filer=seaweedfs-filer:8888
 }
 
 echo "Creating Blob container '${CONTAINER}' (ignored if it exists) ..."
-kubectl exec "${FILER_POD}" -- curl -sS -X PUT \
+kubectl exec "${FILER_POD}" -c seaweedfs -- curl -sS -X PUT \
     "${BLOB_HTTP_URL}/${CONTAINER}?restype=container" > /dev/null
 
 echo "Configuring remote storage '${REMOTE_NAME}' ..."
