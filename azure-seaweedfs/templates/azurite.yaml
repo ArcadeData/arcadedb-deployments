@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azurite
+  labels:
+    app: azurite
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azurite
+  template:
+    metadata:
+      labels:
+        app: azurite
+    spec:
+      # SeaweedFS only accepts an https Azure endpoint, so Azurite needs a TLS
+      # certificate. Generate a self-signed one at startup; it lives only in
+      # this pod and is valid for the Service name.
+      initContainers:
+        - name: generate-certificate
+          image: {{ .Values.azurite.opensslImage }}
+          command:
+            - sh
+            - -c
+            - |
+              openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+                -subj /CN=azurite -addext subjectAltName=DNS:azurite \
+                -keyout /certs/tls.key -out /certs/tls.crt
+              cp /certs/tls.crt /ca/azurite.crt
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+            - name: ca
+              mountPath: /ca
+      containers:
+        - name: azurite
+          image: {{ .Values.azurite.image }}
+          command:
+            - azurite-blob
+            - --blobHost
+            - 0.0.0.0
+            - --cert
+            - /certs/tls.crt
+            - --key
+            - /certs/tls.key
+            # Path-style URLs (https://azurite:10000/<account>) for a hostname
+            # that is not an IP address.
+            - --disableProductStyleUrl
+            - --skipApiVersionCheck
+            - --location
+            - /data
+          ports:
+            - name: blob
+              containerPort: 10000
+          readinessProbe:
+            tcpSocket:
+              port: 10000
+            periodSeconds: 3
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+        # Serves the certificate over plain HTTP, so the SeaweedFS pods can
+        # fetch it and add it to their trusted roots before they start.
+        - name: ca-server
+          image: {{ .Values.azurite.caServerImage }}
+          command: [httpd, -f, -p, "8080", -h, /ca]
+          ports:
+            - name: ca
+              containerPort: 8080
+          volumeMounts:
+            - name: ca
+              mountPath: /ca
+      volumes:
+        - name: certs
+          emptyDir: {}
+        - name: ca
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azurite
+spec:
+  selector:
+    app: azurite
+  ports:
+    - name: blob
+      port: 10000
+      targetPort: 10000
+    - name: ca
+      port: 8080
+      targetPort: 8080

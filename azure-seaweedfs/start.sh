@@ -58,7 +58,7 @@ SECRET
 if helm status arcadedb --namespace default > /dev/null 2>&1; then
     echo "Release 'arcadedb' already installed, skipping the storage-only phase."
 else
-    echo "Installing floci-az and SeaweedFS ..."
+    echo "Installing Azurite and SeaweedFS ..."
     helm install arcadedb . \
         --namespace default \
         --values values.yaml \
@@ -92,4 +92,4 @@ echo "Cluster status:"
 curl -sf -u "${ARCADEDB_USER}:${ARCADEDB_PASS}" "${ARCADEDB_URL}/api/v1/server" | jq .
 
 echo ""
-echo "ArcadeDB HA cluster on SeaweedFS + Azure Blob (floci-az) is up and ready."
+echo "ArcadeDB HA cluster on SeaweedFS + Azure Blob (Azurite) is up and ready."

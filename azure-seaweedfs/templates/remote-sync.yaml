@@ -19,10 +19,10 @@ spec:
         app: seaweedfs-remote-sync
     spec:
       # Same certificate trick as the filer (see values.yaml): trust the
-      # self-signed certificate floci-az generated at startup.
+      # self-signed certificate Azurite generated at startup.
       initContainers:
-        - name: fetch-floci-ca
-          image: {{ .Values.flociAz.caFetchImage }}
+        - name: fetch-azurite-ca
+          image: {{ .Values.azurite.caFetchImage }}
           command:
             - curl
             - -sSf
@@ -32,11 +32,11 @@ spec:
             - --retry-delay
             - "2"
             - -o
-            - /floci-ca/floci-az.pem
-            - http://floci-az:4577/_floci/tls-cert
+            - /azurite-ca/azurite.crt
+            - http://azurite:8080/azurite.crt
           volumeMounts:
-            - name: floci-ca
-              mountPath: /floci-ca
+            - name: azurite-ca
+              mountPath: /azurite-ca
       containers:
         - name: remote-sync
           image: {{ .Values.remoteSync.image }}
@@ -46,10 +46,10 @@ spec:
             - -dir={{ .Values.remoteSync.dir }}
           env:
             - name: SSL_CERT_DIR
-              value: /etc/ssl/certs:/floci-ca
+              value: /etc/ssl/certs:/azurite-ca
           volumeMounts:
-            - name: floci-ca
-              mountPath: /floci-ca
+            - name: azurite-ca
+              mountPath: /azurite-ca
       volumes:
-        - name: floci-ca
+        - name: azurite-ca
           emptyDir: {}

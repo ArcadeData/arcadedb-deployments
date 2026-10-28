@@ -7,7 +7,9 @@ ARCADEDB_USER="${ARCADEDB_USER:-root}"
 ARCADEDB_PASS="${ARCADEDB_PASS:-arcadedb}"
 ARCADEDB_URL="${ARCADEDB_URL:-http://localhost:2480}"
 DB="azure_test_$$"
-FLOCI_URL="http://floci-az:4577/devstoreaccount1"
+ACCOUNT_NAME="devstoreaccount1"
+ACCOUNT_KEY="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+BLOB_URL="https://azurite:10000/$ACCOUNT_NAME"
 CONTAINER="arcadedb"
 FILER_URL="http://seaweedfs-filer:8888"
 MOUNT_DIR="/buckets/arcadedb"
@@ -34,18 +36,33 @@ check() {
     fi
 }
 
-# floci-az and the SeaweedFS filer are only reachable inside the cluster, so
+# Azurite and the SeaweedFS filer are only reachable inside the cluster, so
 # every call to them goes through a small curl pod that lives for the test run.
 start_toolbox() {
     kubectl delete pod "$TOOLBOX" --ignore-not-found --wait=true > /dev/null
     kubectl run "$TOOLBOX" --image="$TOOLBOX_IMAGE" --restart=Never \
         --command -- sleep 3600 > /dev/null
     kubectl wait --for=condition=Ready "pod/$TOOLBOX" --timeout=120s > /dev/null
+    # Trust Azurite's self-signed certificate.
+    kubectl exec "$TOOLBOX" -- curl -sSf -o /tmp/azurite.crt http://azurite:8080/azurite.crt
 }
 
 incluster_curl() {
-    kubectl exec "$TOOLBOX" -- curl -sS "$@"
+    kubectl exec "$TOOLBOX" -- curl -sS --cacert /tmp/azurite.crt "$@"
 }
+
+# Azurite checks every request's signature. An account SAS token signed with
+# the account key authorizes plain curl calls without the SharedKey headers.
+account_sas() {
+    local hex_key signature
+    local params="sv=2019-12-12&ss=b&srt=sco&sp=rwdlac&se=2099-12-31T00:00:00Z&spr=https"
+    hex_key=$(printf '%s' "$ACCOUNT_KEY" | base64 -d | od -An -v -tx1 | tr -d ' \n')
+    signature=$(printf '%s\nrwdlac\nb\nsco\n\n2099-12-31T00:00:00Z\n\nhttps\n2019-12-12\n' "$ACCOUNT_NAME" \
+        | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$hex_key" -binary \
+        | base64 | sed 's/+/%2B/g; s|/|%2F|g; s/=/%3D/g')
+    echo "$params&sig=$signature"
+}
+SAS="$(account_sas)"
 
 cleanup() {
     curl -sf -u "$ARCADEDB_USER:$ARCADEDB_PASS" \
@@ -56,9 +73,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Blob names in the floci-az container, one per line, as "<name> <size>".
+# Blob names in the Azurite container, one per line, as "<name> <size>".
 blob_list_sizes() {
-    incluster_curl "$FLOCI_URL/$CONTAINER?restype=container&comp=list" \
+    incluster_curl "$BLOB_URL/$CONTAINER?restype=container&comp=list&$SAS" \
         | tr '<' '\n' \
         | awk -F'>' '$1 == "Name" { name = $2 } $1 == "Content-Length" { print name, $2 }'
 }
@@ -92,12 +109,14 @@ filer_put() {
 }
 
 # Remote sync is asynchronous. Before trusting Blob, wait until every regular
-# file on the filer has a blob with the same name and size.
+# file on the filer has a blob with the same name and size. Empty files are
+# left out: remote sync never uploads them (ArcadeDB's only one is the
+# database.lck lock file, which it recreates on open).
 wait_for_remote_sync() {
     local deadline missing
     deadline=$(( $(date +%s) + SYNC_TIMEOUT_SECONDS ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        missing=$(comm -23 <(filer_list_sizes | sort) <(blob_list_sizes | sort))
+        missing=$(comm -23 <(filer_list_sizes | grep -v " 0$" | sort) <(blob_list_sizes | sort))
         [ -z "$missing" ] && return 0
         sleep 5
     done
@@ -172,11 +191,11 @@ echo ""
 
 start_toolbox
 
-echo "Remote sync: filer -> floci-az Blob ..."
+echo "Remote sync: filer -> Azurite Blob ..."
 filer_put "$MOUNT_DIR/_canary/hello.txt" "hello-azure"
 wait_for_remote_sync || true
-check "canary blob in floci-az" "$(blob_list | grep -c '^_canary/hello.txt$' || true)" "1"
-check "canary content" "$(incluster_curl "$FLOCI_URL/$CONTAINER/_canary/hello.txt" || true)" "hello-azure"
+check "canary blob in Azurite" "$(blob_list | grep -c '^_canary/hello.txt$' || true)" "1"
+check "canary content" "$(incluster_curl "$BLOB_URL/$CONTAINER/_canary/hello.txt?$SAS" || true)" "hello-azure"
 incluster_curl -X DELETE "$FILER_URL$MOUNT_DIR/_canary/?recursive=true" > /dev/null || true
 
 echo ""
