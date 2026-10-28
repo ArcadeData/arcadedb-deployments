@@ -37,7 +37,7 @@ seaweedfs:
     # risk and refuses to fetch remote-only data from. Allow it: the emulator is
     # the "cloud" here. Against real Azure this flag is not needed.
     extraArgs:
-      - -volume.allowUntrustedRemoteEndpoints
+    - -volume.allowUntrustedRemoteEndpoints
     # Data that is only in Blob (after a rebuild from Blob) is downloaded by
     # the volume server, so it needs floci-az's certificate too. See the filer
     # below.
@@ -67,9 +67,9 @@ seaweedfs:
     extraEnvironmentVars:
       SSL_CERT_DIR: /etc/ssl/certs:/floci-ca
     dataDirs:
-      - name: data1
-        type: emptyDir
-        maxVolumes: 100
+    - name: data1
+      type: emptyDir
+      maxVolumes: 100
     logs:
       type: emptyDir
 
@@ -79,7 +79,7 @@ seaweedfs:
     # that already exists in Blob (Raft's raft-meta.tmp -> raft-meta) fails
     # with an I/O error, because the filer refuses to delete the old blob.
     extraArgs:
-      - -allowUntrustedRemoteEndpoints
+    - -allowUntrustedRemoteEndpoints
     # SeaweedFS refuses a plain-http Azure endpoint, so floci-az runs with TLS
     # and a self-signed certificate it generates at startup. Fetch it before
     # the filer starts and add it to the trusted roots. weed shell commands run
@@ -144,36 +144,36 @@ arcadedb:
 
   arcadedb:
     extraCommands:
-      - -Darcadedb.server.mode=development
+    - -Darcadedb.server.mode=development
 
   # The chart backs every directory with emptyDir by default. The database and
   # Raft directories move to PersistentVolumeClaims instead: the StatefulSet
   # adopts the claims that templates/volumes.yaml creates under the same names,
   # each pinned to a fixed directory on SeaweedFS.
   volumes:
-    - name: arcadedb-config
-      emptyDir: {}
-    - name: arcadedb-logs
-      emptyDir: {}
-    - name: arcadedb-tmp
-      emptyDir: {}
+  - name: arcadedb-config
+    emptyDir: {}
+  - name: arcadedb-logs
+    emptyDir: {}
+  - name: arcadedb-tmp
+    emptyDir: {}
 
   volumeClaimTemplates:
-    - metadata:
-        name: arcadedb-data
-      spec:
-        storageClassName: ""
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 1Gi
-    - metadata:
-        name: arcadedb-raft
-      spec:
-        storageClassName: ""
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 1Gi
+  - metadata:
+      name: arcadedb-data
+    spec:
+      storageClassName: ''
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+  - metadata:
+      name: arcadedb-raft
+    spec:
+      storageClassName: ''
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi

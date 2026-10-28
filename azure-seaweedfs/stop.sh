@@ -9,7 +9,7 @@ PID_FILE=".port-forward.pid"
 # Kill background port-forward
 if [ -f "${PID_FILE}" ]; then
     PID=$(cat "${PID_FILE}")
-    if kill -0 "${PID}" 2>/dev/null; then
+    if kill -0 "${PID}" 2> /dev/null; then
         echo "Stopping port-forward (PID ${PID}) ..."
         kill "${PID}"
     fi

@@ -25,7 +25,7 @@ wait_for_ready() {
 }
 
 # Create kind cluster if not already running
-if kind get clusters 2>/dev/null | grep -qx "${KIND_CLUSTER}"; then
+if kind get clusters 2> /dev/null | grep -qx "${KIND_CLUSTER}"; then
     echo "Kind cluster '${KIND_CLUSTER}' already exists, reusing."
 else
     echo "Creating kind cluster '${KIND_CLUSTER}' ..."
@@ -36,7 +36,7 @@ echo "Updating Helm dependencies ..."
 helm dependency update .
 
 echo "Creating ArcadeDB credentials secret ..."
-kubectl apply -f - <<SECRET
+kubectl apply -f - << SECRET
 apiVersion: v1
 kind: Secret
 metadata:
@@ -80,7 +80,7 @@ echo "Starting port-forward to svc/arcadedb-http on localhost:2480 ..."
 kubectl port-forward svc/arcadedb-http 2480:2480 > /dev/null &
 echo $! > "${PID_FILE}"
 sleep 2
-if ! kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+if ! kill -0 "$(cat "${PID_FILE}")" 2> /dev/null; then
     echo "ERROR: port-forward failed to start — port 2480 may already be in use"
     exit 1
 fi
