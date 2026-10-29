@@ -99,13 +99,12 @@ filer_put() {
         "printf '%s' '$content' | curl -sS -F file=@- '$FILER_URL$path'" > /dev/null
 }
 
-# Remote sync is asynchronous. Before trusting Blob, wait until it mirrors the
-# filer: remote sync has handled every file's latest change (ArcadeDB rewrites
-# pages in place, so a matching size alone does not show that), every file has
-# a blob of the same size, and no ArcadeDB blob is left over from a file the
-# filer has deleted. Empty files are left out: remote sync never uploads them
-# (ArcadeDB's only one is the database.lck lock file, which it recreates on
-# open).
+# Remote sync is asynchronous. Before trusting Blob, wait until it has every
+# file's latest content: remote sync has handled the file's latest change
+# (ArcadeDB rewrites pages in place, so a matching size alone does not show
+# that) and Blob has the file with the same size. Empty files are left out:
+# remote sync never uploads them (ArcadeDB's only one is the database.lck lock
+# file, which it recreates on open).
 remote_sync_lag() {
     local filer blobs
     filer=$(filer_state)
@@ -117,17 +116,38 @@ remote_sync_lag() {
     awk 'NR == FNR { size[$1] = $2; next }
         $2 != 0 && ($3 != 1 || !($1 in size) || size[$1] != $2) { print $1 }' \
         <(echo "$blobs") <(echo "$filer")
-    awk 'NR == FNR { on_filer[$1] = 1; next }
-        $1 ~ /^arcadedb-[0-9]+\// && !($1 in on_filer) { print $1 " (deleted on the filer)" }' \
-        <(echo "$filer") <(echo "$blobs")
 }
 
+# ArcadeDB blobs whose file the filer has deleted.
+remote_sync_leftovers() {
+    awk 'NR == FNR { on_filer[$1] = 1; next }
+        $1 ~ /^arcadedb-[0-9]+\// && !($1 in on_filer) { print $1 }' \
+        <(filer_state) <(blob_list_sizes)
+}
+
+# Deletes normally reach Blob within seconds, so give them a minute once the
+# content has caught up. Some never do: when a file is deleted right after it
+# is written (ArcadeDB's txlog_*.wal at shutdown), remote sync can upload it
+# after the delete and then refuses to delete the object it just uploaded
+# ("keep ...: the object changed since the delete"). Such leftovers are
+# reported, not failed: ArcadeDB replays a leftover WAL file on open.
 wait_for_remote_sync() {
-    local deadline lag
+    local deadline lag leftovers settle
     deadline=$(($(date +%s) + SYNC_TIMEOUT_SECONDS))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         lag=$(remote_sync_lag)
-        [ -z "$lag" ] && return 0
+        if [ -z "$lag" ]; then
+            settle=$(($(date +%s) + 60))
+            while leftovers=$(remote_sync_leftovers) && [ -n "$leftovers" ] &&
+                [ "$(date +%s)" -lt "$settle" ]; do
+                sleep 5
+            done
+            if [ -n "$leftovers" ]; then
+                echo "WARNING: deleted on the filer but still in Blob (known SeaweedFS remote sync issue):"
+                echo "$leftovers"
+            fi
+            return 0
+        fi
         sleep 5
     done
     echo "ERROR: remote sync did not catch up in ${SYNC_TIMEOUT_SECONDS}s; not yet in Blob:"

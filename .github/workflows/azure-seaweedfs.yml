@@ -3,7 +3,10 @@ name: Azure SeaweedFS CI
 on:
   workflow_dispatch:
   workflow_call:
+  # Branch pushes are covered by the pull_request run; only main runs on push.
   push:
+    branches:
+      - main
     paths:
       - azure-seaweedfs/**
       - .github/workflows/azure-seaweedfs.yml
