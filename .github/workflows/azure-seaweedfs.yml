@@ -61,7 +61,7 @@ jobs:
           echo "=== seaweedfs-volume logs ==="
           kubectl logs seaweedfs-volume-0 -n default --tail=80 || true
           echo "=== remote-sync logs ==="
-          kubectl logs deployment/seaweedfs-remote-sync -n default --tail=80 || true
+          kubectl logs deployment/seaweedfs-remote-sync -n default --tail=1000 || true
           echo "=== CSI mount logs ==="
           kubectl logs -l app=arcadedb-mount -n default --tail=80 || true
           echo "=== floci-az logs ==="
