@@ -57,31 +57,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Blobs in the floci-az container, one per line, as
-# "<name> <size> <last-modified, epoch seconds>".
-blob_state() {
+# Blobs in the floci-az container, one per line, as "<name> <size>".
+blob_list_sizes() {
     incluster_curl "$FLOCI_URL/$CONTAINER?restype=container&comp=list" |
         tr '<' '\n' |
-        awk -F'>' '$1 == "Name" { name = $2 } $1 == "Last-Modified" { mtime = $2 }
-            $1 == "Content-Length" { print name "\t" $2 "\t" mtime }' |
-        jq -Rr 'split("\t")
-            | "\(.[0]) \(.[1]) \(.[2] | strptime("%a, %d %b %Y %H:%M:%S GMT") | mktime)"'
+        awk -F'>' '$1 == "Name" { name = $2 } $1 == "Content-Length" { print name, $2 }'
 }
 
 blob_list() {
-    blob_state | cut -d' ' -f1
+    blob_list_sizes | cut -d' ' -f1
 }
 
 # Regular files under the mounted directory on the filer, as
-# "<path> <size> <modified, epoch seconds>", path relative to the mounted
-# directory.
+# "<path> <size> <synced>", path relative to the mounted directory. synced is
+# 1 when remote sync has handled the file's latest change: it uploaded it (or
+# found the content unchanged) after the file was last modified, or the file
+# came from Blob and was not modified since.
 filer_state() {
     local dir="${1:-$MOUNT_DIR}"
     local listing
     listing=$(incluster_curl -H "Accept: application/json" "$FILER_URL$dir/?limit=10000")
     echo "$listing" | jq -r '.Entries // [] | .[]
         | select((.Mode / 2147483648 | floor) % 2 == 0)
-        | "\(.FullPath) \(.FileSize) \(.Mtime | sub("\\.[0-9]+"; "") | fromdateiso8601)"' |
+        | (.Mtime | capture("^(?<s>[^.Z]+)(?<f>\\.[0-9]+)?Z$")
+            | (.s + "Z" | fromdateiso8601) + (.f // "0" | tonumber)) as $mtime
+        | (((.Remote.last_local_sync_ts_ns // 0) / 1e9 >= $mtime)
+            or ((.Remote.remote_mtime // 0) >= $mtime)) as $synced
+        | "\(.FullPath) \(.FileSize) \(if $synced then 1 else 0 end)"' |
         sed "s|^$MOUNT_DIR/||"
     local sub
     for sub in $(echo "$listing" | jq -r '.Entries // [] | .[]
@@ -98,22 +100,22 @@ filer_put() {
 }
 
 # Remote sync is asynchronous. Before trusting Blob, wait until it mirrors the
-# filer: every regular file has a blob of the same size that was uploaded no
-# earlier than the file's last change (ArcadeDB rewrites pages in place, so the
-# size alone does not show that the latest content is there), and no ArcadeDB
-# blob is left over from a file the filer has deleted. Empty files are left
-# out: remote sync never uploads them (ArcadeDB's only one is the database.lck
-# lock file, which it recreates on open).
+# filer: remote sync has handled every file's latest change (ArcadeDB rewrites
+# pages in place, so a matching size alone does not show that), every file has
+# a blob of the same size, and no ArcadeDB blob is left over from a file the
+# filer has deleted. Empty files are left out: remote sync never uploads them
+# (ArcadeDB's only one is the database.lck lock file, which it recreates on
+# open).
 remote_sync_lag() {
     local filer blobs
     filer=$(filer_state)
-    blobs=$(blob_state)
+    blobs=$(blob_list_sizes)
     if [ -z "$filer" ] || [ -z "$blobs" ]; then
         echo "(filer or Blob listing is empty)"
         return
     fi
-    awk 'NR == FNR { size[$1] = $2; mtime[$1] = $3; next }
-        $2 != 0 && (!($1 in size) || size[$1] != $2 || mtime[$1] < $3) { print $1 }' \
+    awk 'NR == FNR { size[$1] = $2; next }
+        $2 != 0 && ($3 != 1 || !($1 in size) || size[$1] != $2) { print $1 }' \
         <(echo "$blobs") <(echo "$filer")
     awk 'NR == FNR { on_filer[$1] = 1; next }
         $1 ~ /^arcadedb-[0-9]+\// && !($1 in on_filer) { print $1 " (deleted on the filer)" }' \
