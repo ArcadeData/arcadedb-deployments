@@ -1,6 +1,7 @@
 # ArcadeDB Deployment Scenarios
 
 [![All Modules CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml)
+[![Azure SeaweedFS CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml)
 [![HA Cluster CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml)
 [![Kubernetes CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml)
 [![Spring Cluster CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/spring-cluster.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/spring-cluster.yml)
@@ -31,7 +32,7 @@ gh workflow run all-modules.yml
 
 - Docker >= 24.0
 - Docker Compose >= 2.0 (ha-cluster and spring-cluster scenarios)
-- [kind](https://kind.sigs.k8s.io/) >= 0.24.0, [Helm](https://helm.sh/) >= 3.16, `kubectl` (kubernetes scenario)
+- [kind](https://kind.sigs.k8s.io/) >= 0.24.0, [Helm](https://helm.sh/) >= 3.16, `kubectl` (kubernetes and azure-seaweedfs scenarios)
 - JDK 25 and Maven 3.9+ (spring-cluster local builds)
 - `curl` and `jq`
 
@@ -39,6 +40,6 @@ gh workflow run all-modules.yml
 
 Each scenario directory contains:
 - `start.sh` — bring the deployment up
-- `stop.sh` — tear the deployment down (kubernetes scenario)
+- `stop.sh` — tear the deployment down (kubernetes and azure-seaweedfs scenarios)
 - `test.sh` — verify the deployment is working
 - `README.md` — scenario-specific details and configuration options
