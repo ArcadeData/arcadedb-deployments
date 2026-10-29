@@ -59,7 +59,7 @@ All three scripts act on the `kind-arcadedb-azure` context only. The [kubernetes
 3. **ArcadeDB files are in Blob:** waits until Blob mirrors the filer, then checks each replica's database files and Raft log. "Mirrors" means three things:
    - remote sync has handled every file's latest change;
    - every file is in Blob with the same size;
-   - nothing is left over from a file the filer has deleted.
+   - nothing is left over from a file the filer has deleted (after a one-minute grace period, leftovers are reported as a warning; see *Findings*).
 4. **Leader failover:** deletes the leader pod. A new leader is elected, the record is still readable, and the deleted pod comes back and rejoins.
 5. **Cold restart from Blob alone:**
    1. Scales ArcadeDB to 0 and waits until Blob holds everything the shutdown wrote.
@@ -86,7 +86,7 @@ What building this taught us about option A:
 - **SeaweedFS 4.48 lost rename events.** ArcadeDB and Ratis replace small files atomically (write `x.tmp`, rename it over `x`), and `filer.remote.sync` failed on those renames, so Blob kept stale content. Fixed in SeaweedFS 4.49 and later; this scenario uses 4.51.
 - **Blob timestamps do not show whether Blob is current.** At shutdown, ArcadeDB rewrites `statistics.json` with identical content. Remote sync sees that the content is unchanged and does not upload it, so the copy in Blob looks older than the file. To decide whether Blob has caught up, `test.sh` uses the filer's own record of the last sync (`last_local_sync_ts_ns`), not Blob's last-modified time.
 - **The volume server downloads Blob-only files.** After a rebuild, reads are served by the volume server, so it needs network access to the Blob endpoint (and, here, the emulator's certificate), not just the filer.
-- **Open:** two CI runs during development saw a deleted `txlog_0.wal` remain in Blob after a 10-minute wait. It has not happened since. The CI workflow keeps 1000 lines of the remote sync log on failure so that a repeat can be traced.
+- **Deleted files can stay in Blob for good (SeaweedFS remote sync race).** At shutdown ArcadeDB writes `txlog_0.wal` and deletes it almost at once. Remote sync sometimes uploads the file after the delete, then processes the delete, sees an object that "changed since the delete" (its own upload) and keeps it. The orphan WAL is never removed. A rebuild from Blob still works, because ArcadeDB replays the leftover WAL on open, but Blob holds a file the filer does not. `test.sh` reports such leftovers as a warning instead of failing; it happens in roughly half the CI runs.
 
 ## Emulator Notes
 
