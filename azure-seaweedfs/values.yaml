@@ -1,7 +1,7 @@
 # floci-az emulates Azure Blob Storage. SharedKey signatures are not validated,
 # so these are the well-known Azurite development credentials, obviously fake.
 flociAz:
-  image: floci/floci-az:0.15.0
+  image: floci/floci-az:0.16.0
   accountName: devstoreaccount1
   accountKey: Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
   container: arcadedb
