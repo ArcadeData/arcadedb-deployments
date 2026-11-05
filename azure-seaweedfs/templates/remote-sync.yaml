@@ -1,0 +1,55 @@
+# weed filer.remote.sync streams filer changes under the mounted directory to
+# Azure Blob. It is asynchronous: an fsync is durable in SeaweedFS, not yet in
+# Blob. It exits until remote-setup.sh has mounted the directory, and
+# Kubernetes restarts it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seaweedfs-remote-sync
+  labels:
+    app: seaweedfs-remote-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seaweedfs-remote-sync
+  template:
+    metadata:
+      labels:
+        app: seaweedfs-remote-sync
+    spec:
+      # Same certificate trick as the filer (see values.yaml): trust the
+      # self-signed certificate floci-az generated at startup.
+      initContainers:
+        - name: fetch-floci-ca
+          image: {{ .Values.flociAz.caFetchImage }}
+          command:
+            - curl
+            - -sSf
+            - --retry
+            - "60"
+            - --retry-all-errors
+            - --retry-delay
+            - "2"
+            - -o
+            - /floci-ca/floci-az.pem
+            - http://floci-az:4577/_floci/tls-cert
+          volumeMounts:
+            - name: floci-ca
+              mountPath: /floci-ca
+      containers:
+        - name: remote-sync
+          image: {{ .Values.remoteSync.image }}
+          args:
+            - filer.remote.sync
+            - -filer=seaweedfs-filer:8888
+            - -dir={{ .Values.remoteSync.dir }}
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/ssl/certs:/floci-ca
+          volumeMounts:
+            - name: floci-ca
+              mountPath: /floci-ca
+      volumes:
+        - name: floci-ca
+          emptyDir: {}

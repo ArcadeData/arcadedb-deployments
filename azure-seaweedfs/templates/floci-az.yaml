@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: floci-az
+  labels:
+    app: floci-az
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: floci-az
+  template:
+    metadata:
+      labels:
+        app: floci-az
+    spec:
+      # A Service named floci-az makes Kubernetes inject FLOCI_AZ_PORT=tcp://...,
+      # which floci-az reads as its own port setting and fails to start.
+      enableServiceLinks: false
+      containers:
+        - name: floci-az
+          image: {{ .Values.flociAz.image }}
+          env:
+            # SeaweedFS only accepts an https Azure endpoint. floci-az then
+            # serves HTTP and HTTPS on the same port, with a self-signed
+            # certificate whose SANs include this hostname.
+            - name: FLOCI_AZ_TLS_ENABLED
+              value: "true"
+            - name: FLOCI_AZ_HOSTNAME
+              value: floci-az
+            # Over HTTP/2 a Put Block of a large, frequently rewritten file
+            # stalls until the client cancels it, and the stuck connection
+            # blocks every later request, so remote sync never catches up.
+            # HTTP/1.1 does not have the problem.
+            - name: QUARKUS_HTTP_HTTP2
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 4577
+          readinessProbe:
+            tcpSocket:
+              port: 4577
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: floci-az
+spec:
+  selector:
+    app: floci-az
+  ports:
+    - name: http
+      port: 4577
+      targetPort: 4577

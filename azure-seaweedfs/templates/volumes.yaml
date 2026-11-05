@@ -1,0 +1,46 @@
+# One static PersistentVolume per replica and directory, each pinned to a fixed
+# path under the remote-mounted /buckets/arcadedb, so the files land in Blob
+# under readable names (arcadedb-0/data/..., arcadedb-0/raft/...) and the same
+# paths are found again after SeaweedFS is rebuilt from Blob.
+#
+# The claims carry the names the StatefulSet's volumeClaimTemplates would
+# generate (<template>-<pod>), so the StatefulSet adopts them.
+{{- if .Values.arcadedb.enabled }}
+{{- range $n := until 3 }}
+{{- range $dir := list "data" "raft" }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: arcadedb-{{ $dir }}-arcadedb-{{ $n }}-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: {{ $.Release.Namespace }}
+    name: arcadedb-{{ $dir }}-arcadedb-{{ $n }}
+  csi:
+    driver: seaweedfs-csi-driver
+    volumeHandle: arcadedb-{{ $dir }}-arcadedb-{{ $n }}-pv
+    volumeAttributes:
+      path: /buckets/arcadedb/arcadedb-{{ $n }}/{{ $dir }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arcadedb-{{ $dir }}-arcadedb-{{ $n }}
+spec:
+  storageClassName: ""
+  volumeName: arcadedb-{{ $dir }}-arcadedb-{{ $n }}-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+{{- end }}
+{{- end }}
+{{- end }}
