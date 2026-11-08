@@ -6,41 +6,41 @@ Description: >-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
-      - Label:
-          default: Cluster and Network Configuration
-        Parameters:
-          - NamePrefix
-          - VpcId
-          - Subnet0Id
-          - Subnet1Id
-          - Subnet2Id
-          - PrivateZoneName
-          - EnableNlb
-          - AllowedCidr
-          - AssociatePublicIp
-          - KeyName
-          - IamInstanceProfile
-      - Label:
-          default: Instance Configuration
-        Parameters:
-          - AmiId
-          - InstanceType
-          - ArcadeDBVersion
-      - Label:
-          default: Storage Configuration
-        Parameters:
-          - VolumeSize
-          - VolumeType
-          - EnableEncryption
-      - Label:
-          default: ArcadeDB Configuration
-        Parameters:
-          - ArcadeDBRootPassword
-          - ArcadeDBServerMode
-          - ArcadeDBHttpPort
-          - ArcadeDBPlugins
-          - ArcadeDBMaxRAM
-          - ArcadeDBJavaOpts
+    - Label:
+        default: Cluster and Network Configuration
+      Parameters:
+      - NamePrefix
+      - VpcId
+      - Subnet0Id
+      - Subnet1Id
+      - Subnet2Id
+      - PrivateZoneName
+      - EnableNlb
+      - AllowedCidr
+      - AssociatePublicIp
+      - KeyName
+      - IamInstanceProfile
+    - Label:
+        default: Instance Configuration
+      Parameters:
+      - AmiId
+      - InstanceType
+      - ArcadeDBVersion
+    - Label:
+        default: Storage Configuration
+      Parameters:
+      - VolumeSize
+      - VolumeType
+      - EnableEncryption
+    - Label:
+        default: ArcadeDB Configuration
+      Parameters:
+      - ArcadeDBRootPassword
+      - ArcadeDBServerMode
+      - ArcadeDBHttpPort
+      - ArcadeDBPlugins
+      - ArcadeDBMaxRAM
+      - ArcadeDBJavaOpts
 
     ParameterLabels:
       NamePrefix:
@@ -90,7 +90,7 @@ Parameters:
     Type: String
     Default: arcadedb-ha
     # Load balancer and target group names are limited to 32 characters; "-nlb" / "-tg" are appended.
-    AllowedPattern: '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,22}[a-zA-Z0-9])?$'
+    AllowedPattern: ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,22}[a-zA-Z0-9])?$
     ConstraintDescription: Must be 1-24 characters of letters, digits and hyphens, not starting or ending with a hyphen
 
   InstanceType:
@@ -100,48 +100,48 @@ Parameters:
     Type: String
     Default: m6i.large
     AllowedValues:
-      - t3.medium
-      - t3.large
-      - t3.xlarge
-      - m6i.large
-      - m6i.xlarge
-      - m6i.2xlarge
-      - m6i.4xlarge
-      - m7i.large
-      - m7i.xlarge
-      - m7i.2xlarge
-      - m7i.4xlarge
-      - r6i.large
-      - r6i.xlarge
-      - r6i.2xlarge
-      - r6i.4xlarge
-      - r7i.large
-      - r7i.xlarge
-      - r7i.2xlarge
-      - r7i.4xlarge
-      - c6i.large
-      - c6i.xlarge
-      - c6i.2xlarge
-      - c6i.4xlarge
-      - c7i.large
-      - c7i.xlarge
-      - c7i.2xlarge
-      - c7i.4xlarge
-      - t4g.medium
-      - t4g.large
-      - t4g.xlarge
-      - m7g.large
-      - m7g.xlarge
-      - m7g.2xlarge
-      - m7g.4xlarge
-      - r7g.large
-      - r7g.xlarge
-      - r7g.2xlarge
-      - r7g.4xlarge
-      - c7g.large
-      - c7g.xlarge
-      - c7g.2xlarge
-      - c7g.4xlarge
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m6i.large
+    - m6i.xlarge
+    - m6i.2xlarge
+    - m6i.4xlarge
+    - m7i.large
+    - m7i.xlarge
+    - m7i.2xlarge
+    - m7i.4xlarge
+    - r6i.large
+    - r6i.xlarge
+    - r6i.2xlarge
+    - r6i.4xlarge
+    - r7i.large
+    - r7i.xlarge
+    - r7i.2xlarge
+    - r7i.4xlarge
+    - c6i.large
+    - c6i.xlarge
+    - c6i.2xlarge
+    - c6i.4xlarge
+    - c7i.large
+    - c7i.xlarge
+    - c7i.2xlarge
+    - c7i.4xlarge
+    - t4g.medium
+    - t4g.large
+    - t4g.xlarge
+    - m7g.large
+    - m7g.xlarge
+    - m7g.2xlarge
+    - m7g.4xlarge
+    - r7g.large
+    - r7g.xlarge
+    - r7g.2xlarge
+    - r7g.4xlarge
+    - c7g.large
+    - c7g.xlarge
+    - c7g.2xlarge
+    - c7g.4xlarge
     ConstraintDescription: Must be a valid EC2 instance type
 
   AmiId:
@@ -164,13 +164,13 @@ Parameters:
     Type: String
     Default: ''
     MaxLength: 128
-    AllowedPattern: '^[\w+=,.@-]*$'
+    AllowedPattern: ^[\w+=,.@-]*$
     ConstraintDescription: Must be a valid IAM instance profile name, or empty
 
   ArcadeDBVersion:
     Description: ArcadeDB version (informational tag)
     Type: String
-    Default: '26.11.1'
+    Default: 26.11.1
 
   VpcId:
     Description: >-
@@ -196,7 +196,7 @@ Parameters:
       The internal NLB preserves client IPs, so this must cover the real clients. Never use 0.0.0.0/0
     Type: String
     Default: 10.0.0.0/16
-    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
     ConstraintDescription: Must be a valid IPv4 CIDR block, e.g. 10.0.0.0/16
 
   AssociatePublicIp:
@@ -204,8 +204,8 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues:
-      - 'true'
-      - 'false'
+    - 'true'
+    - 'false'
 
   PrivateZoneName:
     Description: >-
@@ -213,7 +213,7 @@ Parameters:
       Nodes are registered as node-0.<zone>, node-1.<zone>, node-2.<zone>
     Type: String
     Default: arcadedb.internal
-    AllowedPattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+    AllowedPattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$
     ConstraintDescription: Must be a lowercase DNS domain name such as arcadedb.internal (no trailing dot)
 
   EnableNlb:
@@ -221,8 +221,8 @@ Parameters:
     Type: String
     Default: 'true'
     AllowedValues:
-      - 'true'
-      - 'false'
+    - 'true'
+    - 'false'
 
   VolumeSize:
     Description: Size of each node's EBS root volume in GB
@@ -236,17 +236,17 @@ Parameters:
     Type: String
     Default: gp3
     AllowedValues:
-      - gp3
-      - gp2
-      - io2
+    - gp3
+    - gp2
+    - io2
 
   EnableEncryption:
     Description: Enable EBS volume encryption
     Type: String
     Default: 'true'
     AllowedValues:
-      - 'true'
-      - 'false'
+    - 'true'
+    - 'false'
 
   ArcadeDBRootPassword:
     Description: >-
@@ -256,7 +256,7 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 8
-    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@!#^+=._&-])[A-Za-z\d@!#^+=._&-]{8,}$'
+    AllowedPattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@!#^+=._&-])[A-Za-z\d@!#^+=._&-]{8,}$
     ConstraintDescription: Must contain lowercase, uppercase, a number and one of @!#^+=._&- (no other characters)
 
   ArcadeDBServerMode:
@@ -264,9 +264,9 @@ Parameters:
     Type: String
     Default: production
     AllowedValues:
-      - development
-      - test
-      - production
+    - development
+    - test
+    - production
 
   ArcadeDBHttpPort:
     Description: >-
@@ -274,7 +274,7 @@ Parameters:
       Must not be 2434, the Raft port
     Type: String
     Default: '2480'
-    AllowedPattern: '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
+    AllowedPattern: ^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$
     ConstraintDescription: Must be a port number between 1 and 65535
 
   ArcadeDBPlugins:
@@ -302,8 +302,8 @@ Parameters:
 Rules:
   HttpPortIsNotRaftPort:
     Assertions:
-      - Assert: !Not [!Equals [!Ref ArcadeDBHttpPort, '2434']]
-        AssertDescription: ArcadeDBHttpPort must not be 2434, which is the Raft port
+    - Assert: !Not [!Equals [!Ref ArcadeDBHttpPort, '2434']]
+      AssertDescription: ArcadeDBHttpPort must not be 2434, which is the Raft port
 
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, '']]
@@ -321,30 +321,30 @@ Resources:
       GroupDescription: ArcadeDB HA cluster nodes
       VpcId: !Ref VpcId
       SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: !Ref ArcadeDBHttpPort
+        ToPort: !Ref ArcadeDBHttpPort
+        CidrIp: !Ref AllowedCidr
+        Description: ArcadeDB HTTP API and Studio from clients
+      - !If
+        - HasKeyName
         - IpProtocol: tcp
-          FromPort: !Ref ArcadeDBHttpPort
-          ToPort: !Ref ArcadeDBHttpPort
+          FromPort: 22
+          ToPort: 22
           CidrIp: !Ref AllowedCidr
-          Description: ArcadeDB HTTP API and Studio from clients
-        - !If
-          - HasKeyName
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Ref AllowedCidr
-            Description: SSH access
-          - !Ref AWS::NoValue
+          Description: SSH access
+        - !Ref AWS::NoValue
       SecurityGroupEgress:
-        - IpProtocol: '-1'
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
+      - IpProtocol: '-1'
+        CidrIp: 0.0.0.0/0
+        Description: Allow all outbound traffic
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-sg'
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
+      - Key: Name
+        Value: !Sub '${NamePrefix}-sg'
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
 
   # Raft only from the node security group itself.
   NodeRaftIngress:
@@ -378,22 +378,22 @@ Resources:
       GroupDescription: ArcadeDB HA cluster internal NLB
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: !Ref ArcadeDBHttpPort
-          ToPort: !Ref ArcadeDBHttpPort
-          CidrIp: !Ref AllowedCidr
-          Description: ArcadeDB HTTP API and Studio from clients
+      - IpProtocol: tcp
+        FromPort: !Ref ArcadeDBHttpPort
+        ToPort: !Ref ArcadeDBHttpPort
+        CidrIp: !Ref AllowedCidr
+        Description: ArcadeDB HTTP API and Studio from clients
       SecurityGroupEgress:
-        - IpProtocol: '-1'
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
+      - IpProtocol: '-1'
+        CidrIp: 0.0.0.0/0
+        Description: Allow all outbound traffic
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-nlb-sg'
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
+      - Key: Name
+        Value: !Sub '${NamePrefix}-nlb-sg'
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
 
   NodeHttpFromNlbIngress:
     Type: AWS::EC2::SecurityGroupIngress
@@ -419,15 +419,15 @@ Resources:
       HostedZoneConfig:
         Comment: !Sub 'ArcadeDB HA cluster ${NamePrefix} node discovery'
       VPCs:
-        - VPCId: !Ref VpcId
-          VPCRegion: !Ref AWS::Region
+      - VPCId: !Ref VpcId
+        VPCRegion: !Ref AWS::Region
       HostedZoneTags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-zone'
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
+      - Key: Name
+        Value: !Sub '${NamePrefix}-zone'
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
 
   # ---------------------------------------------------------------------------
   # EC2 instances (node-0, node-1, node-2)
@@ -443,14 +443,14 @@ Resources:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1
       TagSpecifications:
-        - ResourceType: launch-template
-          Tags:
-            - Key: Name
-              Value: !Sub '${NamePrefix}-node'
-            - Key: Cluster
-              Value: !Ref NamePrefix
-            - Key: Application
-              Value: ArcadeDB
+      - ResourceType: launch-template
+        Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-node'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
 
   # The user data of the three nodes differs only by the server name. The server list
   # uses the static DNS names of the private zone, never the instance IPs, so the
@@ -467,19 +467,19 @@ Resources:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
       NetworkInterfaces:
-        - DeviceIndex: '0'
-          SubnetId: !Ref Subnet0Id
-          GroupSet:
-            - !GetAtt NodeSecurityGroup.GroupId
-          AssociatePublicIpAddress: !Ref AssociatePublicIp
-          DeleteOnTermination: true
+      - DeviceIndex: '0'
+        SubnetId: !Ref Subnet0Id
+        GroupSet:
+        - !GetAtt NodeSecurityGroup.GroupId
+        AssociatePublicIpAddress: !Ref AssociatePublicIp
+        DeleteOnTermination: true
       BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: !Ref VolumeSize
-            VolumeType: !Ref VolumeType
-            Encrypted: !Ref EnableEncryption
-            DeleteOnTermination: true
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: !Ref VolumeSize
+          VolumeType: !Ref VolumeType
+          Encrypted: !Ref EnableEncryption
+          DeleteOnTermination: true
       # Copies the instance tags (Name, Cluster, ...) to the root volume.
       PropagateTagsToVolumeOnCreation: true
       UserData:
@@ -558,16 +558,16 @@ Resources:
 
           systemctl start arcadedb
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-node-0'
-        - Key: Node
-          Value: node-0
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
-        - Key: Version
-          Value: !Ref ArcadeDBVersion
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-0'
+      - Key: Node
+        Value: node-0
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+      - Key: Version
+        Value: !Ref ArcadeDBVersion
 
   Node1:
     Type: AWS::EC2::Instance
@@ -581,19 +581,19 @@ Resources:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
       NetworkInterfaces:
-        - DeviceIndex: '0'
-          SubnetId: !Ref Subnet1Id
-          GroupSet:
-            - !GetAtt NodeSecurityGroup.GroupId
-          AssociatePublicIpAddress: !Ref AssociatePublicIp
-          DeleteOnTermination: true
+      - DeviceIndex: '0'
+        SubnetId: !Ref Subnet1Id
+        GroupSet:
+        - !GetAtt NodeSecurityGroup.GroupId
+        AssociatePublicIpAddress: !Ref AssociatePublicIp
+        DeleteOnTermination: true
       BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: !Ref VolumeSize
-            VolumeType: !Ref VolumeType
-            Encrypted: !Ref EnableEncryption
-            DeleteOnTermination: true
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: !Ref VolumeSize
+          VolumeType: !Ref VolumeType
+          Encrypted: !Ref EnableEncryption
+          DeleteOnTermination: true
       # Copies the instance tags (Name, Cluster, ...) to the root volume.
       PropagateTagsToVolumeOnCreation: true
       UserData:
@@ -672,16 +672,16 @@ Resources:
 
           systemctl start arcadedb
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-node-1'
-        - Key: Node
-          Value: node-1
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
-        - Key: Version
-          Value: !Ref ArcadeDBVersion
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-1'
+      - Key: Node
+        Value: node-1
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+      - Key: Version
+        Value: !Ref ArcadeDBVersion
 
   Node2:
     Type: AWS::EC2::Instance
@@ -695,19 +695,19 @@ Resources:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
       NetworkInterfaces:
-        - DeviceIndex: '0'
-          SubnetId: !Ref Subnet2Id
-          GroupSet:
-            - !GetAtt NodeSecurityGroup.GroupId
-          AssociatePublicIpAddress: !Ref AssociatePublicIp
-          DeleteOnTermination: true
+      - DeviceIndex: '0'
+        SubnetId: !Ref Subnet2Id
+        GroupSet:
+        - !GetAtt NodeSecurityGroup.GroupId
+        AssociatePublicIpAddress: !Ref AssociatePublicIp
+        DeleteOnTermination: true
       BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: !Ref VolumeSize
-            VolumeType: !Ref VolumeType
-            Encrypted: !Ref EnableEncryption
-            DeleteOnTermination: true
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: !Ref VolumeSize
+          VolumeType: !Ref VolumeType
+          Encrypted: !Ref EnableEncryption
+          DeleteOnTermination: true
       # Copies the instance tags (Name, Cluster, ...) to the root volume.
       PropagateTagsToVolumeOnCreation: true
       UserData:
@@ -786,16 +786,16 @@ Resources:
 
           systemctl start arcadedb
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-node-2'
-        - Key: Node
-          Value: node-2
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
-        - Key: Version
-          Value: !Ref ArcadeDBVersion
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-2'
+      - Key: Node
+        Value: node-2
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+      - Key: Version
+        Value: !Ref ArcadeDBVersion
 
   # ---------------------------------------------------------------------------
   # A records: node-N.<zone> -> node N private IP (created after the instances)
@@ -809,7 +809,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-        - !GetAtt Node0.PrivateIp
+      - !GetAtt Node0.PrivateIp
 
   Node1Record:
     Type: AWS::Route53::RecordSet
@@ -819,7 +819,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-        - !GetAtt Node1.PrivateIp
+      - !GetAtt Node1.PrivateIp
 
   Node2Record:
     Type: AWS::Route53::RecordSet
@@ -829,7 +829,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-        - !GetAtt Node2.PrivateIp
+      - !GetAtt Node2.PrivateIp
 
   # ---------------------------------------------------------------------------
   # Internal Network Load Balancer (optional, EnableNlb)
@@ -843,21 +843,21 @@ Resources:
       Type: network
       Scheme: internal
       Subnets:
-        - !Ref Subnet0Id
-        - !Ref Subnet1Id
-        - !Ref Subnet2Id
+      - !Ref Subnet0Id
+      - !Ref Subnet1Id
+      - !Ref Subnet2Id
       SecurityGroups:
-        - !GetAtt NlbSecurityGroup.GroupId
+      - !GetAtt NlbSecurityGroup.GroupId
       LoadBalancerAttributes:
-        - Key: load_balancing.cross_zone.enabled
-          Value: 'true'
+      - Key: load_balancing.cross_zone.enabled
+        Value: 'true'
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-nlb'
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
+      - Key: Name
+        Value: !Sub '${NamePrefix}-nlb'
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
 
   # /api/v1/ready is unauthenticated. With readinessRequiresHA=true a node only
   # reports ready once it is part of the cluster.
@@ -874,27 +874,27 @@ Resources:
       HealthCheckPath: /api/v1/ready
       HealthCheckPort: traffic-port
       Matcher:
-        HttpCode: '200-399'
+        HttpCode: 200-399
       HealthCheckIntervalSeconds: 10
       HealthyThresholdCount: 3
       UnhealthyThresholdCount: 3
       TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: '30'
+      - Key: deregistration_delay.timeout_seconds
+        Value: '30'
       Targets:
-        - Id: !Ref Node0
-          Port: !Ref ArcadeDBHttpPort
-        - Id: !Ref Node1
-          Port: !Ref ArcadeDBHttpPort
-        - Id: !Ref Node2
-          Port: !Ref ArcadeDBHttpPort
+      - Id: !Ref Node0
+        Port: !Ref ArcadeDBHttpPort
+      - Id: !Ref Node1
+        Port: !Ref ArcadeDBHttpPort
+      - Id: !Ref Node2
+        Port: !Ref ArcadeDBHttpPort
       Tags:
-        - Key: Name
-          Value: !Sub '${NamePrefix}-tg'
-        - Key: Cluster
-          Value: !Ref NamePrefix
-        - Key: Application
-          Value: ArcadeDB
+      - Key: Name
+        Value: !Sub '${NamePrefix}-tg'
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
 
   NlbListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -904,8 +904,8 @@ Resources:
       Port: !Ref ArcadeDBHttpPort
       Protocol: TCP
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref NlbTargetGroup
+      - Type: forward
+        TargetGroupArn: !Ref NlbTargetGroup
 
 Outputs:
   NlbDnsName:
@@ -928,10 +928,9 @@ Outputs:
   StudioUrl:
     Description: URL for ArcadeDB Studio, the NLB when enabled, otherwise node-0 (reachable only inside the VPC)
     Value: !If
-      - NlbEnabled
-      - !Sub 'http://${Nlb.DNSName}:${ArcadeDBHttpPort}'
-      - !Sub 'http://node-0.${PrivateZoneName}:${ArcadeDBHttpPort}'
-
+    - NlbEnabled
+    - !Sub 'http://${Nlb.DNSName}:${ArcadeDBHttpPort}'
+    - !Sub 'http://node-0.${PrivateZoneName}:${ArcadeDBHttpPort}'
   ZoneName:
     Description: Name of the Route 53 private hosted zone
     Value: !Ref PrivateZoneName

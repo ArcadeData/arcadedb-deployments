@@ -1,39 +1,39 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ArcadeDB Single Instance Deployment from AWS Marketplace'
+Description: ArcadeDB Single Instance Deployment from AWS Marketplace
 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
-      - Label:
-          default: Instance Configuration
-        Parameters:
-          - AmiId
-          - InstanceType
-          - KeyName
-          - CreateIamResources
-          - ArcadeDBVersion
-      - Label:
-          default: Network Configuration
-        Parameters:
-          - VpcId
-          - SubnetId
-          - ExistingSecurityGroupId
-          - AllowedCIDR
-      - Label:
-          default: Storage Configuration
-        Parameters:
-          - VolumeSize
-          - VolumeType
-          - EnableEncryption
-      - Label:
-          default: ArcadeDB Configuration
-        Parameters:
-          - ArcadeDBRootPassword
-          - ArcadeDBServerMode
-          - ArcadeDBHttpPort
-          - ArcadeDBPlugins
-          - ArcadeDBMaxRAM
-          - ArcadeDBJavaOpts
+    - Label:
+        default: Instance Configuration
+      Parameters:
+      - AmiId
+      - InstanceType
+      - KeyName
+      - CreateIamResources
+      - ArcadeDBVersion
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VpcId
+      - SubnetId
+      - ExistingSecurityGroupId
+      - AllowedCIDR
+    - Label:
+        default: Storage Configuration
+      Parameters:
+      - VolumeSize
+      - VolumeType
+      - EnableEncryption
+    - Label:
+        default: ArcadeDB Configuration
+      Parameters:
+      - ArcadeDBRootPassword
+      - ArcadeDBServerMode
+      - ArcadeDBHttpPort
+      - ArcadeDBPlugins
+      - ArcadeDBMaxRAM
+      - ArcadeDBJavaOpts
 
     ParameterLabels:
       AmiId:
@@ -71,48 +71,48 @@ Parameters:
     Type: String
     Default: m6i.large
     AllowedValues:
-      - t3.medium
-      - t3.large
-      - t3.xlarge
-      - m6i.large
-      - m6i.xlarge
-      - m6i.2xlarge
-      - m6i.4xlarge
-      - m7i.large
-      - m7i.xlarge
-      - m7i.2xlarge
-      - m7i.4xlarge
-      - r6i.large
-      - r6i.xlarge
-      - r6i.2xlarge
-      - r6i.4xlarge
-      - r7i.large
-      - r7i.xlarge
-      - r7i.2xlarge
-      - r7i.4xlarge
-      - c6i.large
-      - c6i.xlarge
-      - c6i.2xlarge
-      - c6i.4xlarge
-      - c7i.large
-      - c7i.xlarge
-      - c7i.2xlarge
-      - c7i.4xlarge
-      - t4g.medium
-      - t4g.large
-      - t4g.xlarge
-      - m7g.large
-      - m7g.xlarge
-      - m7g.2xlarge
-      - m7g.4xlarge
-      - r7g.large
-      - r7g.xlarge
-      - r7g.2xlarge
-      - r7g.4xlarge
-      - c7g.large
-      - c7g.xlarge
-      - c7g.2xlarge
-      - c7g.4xlarge
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m6i.large
+    - m6i.xlarge
+    - m6i.2xlarge
+    - m6i.4xlarge
+    - m7i.large
+    - m7i.xlarge
+    - m7i.2xlarge
+    - m7i.4xlarge
+    - r6i.large
+    - r6i.xlarge
+    - r6i.2xlarge
+    - r6i.4xlarge
+    - r7i.large
+    - r7i.xlarge
+    - r7i.2xlarge
+    - r7i.4xlarge
+    - c6i.large
+    - c6i.xlarge
+    - c6i.2xlarge
+    - c6i.4xlarge
+    - c7i.large
+    - c7i.xlarge
+    - c7i.2xlarge
+    - c7i.4xlarge
+    - t4g.medium
+    - t4g.large
+    - t4g.xlarge
+    - m7g.large
+    - m7g.xlarge
+    - m7g.2xlarge
+    - m7g.4xlarge
+    - r7g.large
+    - r7g.xlarge
+    - r7g.2xlarge
+    - r7g.4xlarge
+    - c7g.large
+    - c7g.xlarge
+    - c7g.2xlarge
+    - c7g.4xlarge
     ConstraintDescription: Must be a valid EC2 instance type
 
   AmiId:
@@ -138,13 +138,13 @@ Parameters:
     Description: Pre-created security group ID. Leave empty to create one
     Type: String
     Default: ''
-    AllowedPattern: '^(sg-[0-9a-f]{8,17})?$'
+    AllowedPattern: ^(sg-[0-9a-f]{8,17})?$
 
   AllowedCIDR:
     Description: CIDR block allowed to access ArcadeDB (e.g., 10.0.0.0/16 or your IP/32). Only used when a security group is created
     Type: String
     Default: 10.0.0.0/16
-    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
 
   VolumeSize:
     Description: Size of the EBS volume in GB
@@ -158,30 +158,30 @@ Parameters:
     Type: String
     Default: gp3
     AllowedValues:
-      - gp3
-      - gp2
-      - io2
+    - gp3
+    - gp2
+    - io2
 
   EnableEncryption:
     Description: Enable EBS volume encryption
     Type: String
     Default: 'true'
     AllowedValues:
-      - 'true'
-      - 'false'
+    - 'true'
+    - 'false'
 
   CreateIamResources:
     Description: Create the IAM role, instance profile and CloudWatch recovery alarm. Set to false for minimal-permission deployments
     Type: String
     Default: 'true'
     AllowedValues:
-      - 'true'
-      - 'false'
+    - 'true'
+    - 'false'
 
   ArcadeDBVersion:
     Description: ArcadeDB version (informational tag)
     Type: String
-    Default: '26.11.1'
+    Default: 26.11.1
 
   ArcadeDBRootPassword:
     Description: >-
@@ -191,7 +191,7 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 8
-    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@!#^+=._&-])[A-Za-z\d@!#^+=._&-]{8,}$'
+    AllowedPattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@!#^+=._&-])[A-Za-z\d@!#^+=._&-]{8,}$
     ConstraintDescription: Must contain lowercase, uppercase, a number and one of @!#^+=._&- (no other characters)
 
   ArcadeDBServerMode:
@@ -199,9 +199,9 @@ Parameters:
     Type: String
     Default: production
     AllowedValues:
-      - development
-      - test
-      - production
+    - development
+    - test
+    - production
 
   ArcadeDBHttpPort:
     Description: HTTP port for ArcadeDB API and Studio
@@ -240,28 +240,28 @@ Resources:
       GroupDescription: Security group for ArcadeDB instance
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: !Ref ArcadeDBHttpPort
-          ToPort: !Ref ArcadeDBHttpPort
-          CidrIp: !Ref AllowedCIDR
-          Description: ArcadeDB HTTP API
-        - IpProtocol: tcp
-          FromPort: 2484
-          ToPort: 2484
-          CidrIp: !Ref AllowedCIDR
-          Description: ArcadeDB HTTPS API
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: !Ref AllowedCIDR
-          Description: SSH access
+      - IpProtocol: tcp
+        FromPort: !Ref ArcadeDBHttpPort
+        ToPort: !Ref ArcadeDBHttpPort
+        CidrIp: !Ref AllowedCIDR
+        Description: ArcadeDB HTTP API
+      - IpProtocol: tcp
+        FromPort: 2484
+        ToPort: 2484
+        CidrIp: !Ref AllowedCIDR
+        Description: ArcadeDB HTTPS API
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref AllowedCIDR
+        Description: SSH access
       SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
+      - IpProtocol: -1
+        CidrIp: 0.0.0.0/0
+        Description: Allow all outbound traffic
       Tags:
-        - Key: Name
-          Value: !Sub '${AWS::StackName}-sg'
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-sg'
 
   ArcadeDBRole:
     Type: AWS::IAM::Role
@@ -270,23 +270,23 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: 'sts:AssumeRole'
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Tags:
-        - Key: Name
-          Value: !Sub '${AWS::StackName}-role'
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-role'
 
   ArcadeDBInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Condition: CreateIam
     Properties:
       Roles:
-        - !Ref ArcadeDBRole
+      - !Ref ArcadeDBRole
 
   # Requires IMDSv2 (session tokens) on the instance. AWS::EC2::Instance cannot set this itself.
   ArcadeDBLaunchTemplate:
@@ -310,14 +310,14 @@ Resources:
         LaunchTemplateId: !Ref ArcadeDBLaunchTemplate
         Version: !GetAtt ArcadeDBLaunchTemplate.LatestVersionNumber
       SecurityGroupIds:
-        - !If [CreateSecurityGroup, !Ref ArcadeDBSecurityGroup, !Ref ExistingSecurityGroupId]
+      - !If [CreateSecurityGroup, !Ref ArcadeDBSecurityGroup, !Ref ExistingSecurityGroupId]
       BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: !Ref VolumeSize
-            VolumeType: !Ref VolumeType
-            Encrypted: !Ref EnableEncryption
-            DeleteOnTermination: true
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: !Ref VolumeSize
+          VolumeType: !Ref VolumeType
+          Encrypted: !Ref EnableEncryption
+          DeleteOnTermination: true
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -360,12 +360,12 @@ Resources:
           systemctl daemon-reload
           systemctl start arcadedb
       Tags:
-        - Key: Name
-          Value: !Sub '${AWS::StackName}-instance'
-        - Key: Application
-          Value: ArcadeDB
-        - Key: Version
-          Value: !Ref ArcadeDBVersion
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-instance'
+      - Key: Application
+        Value: ArcadeDB
+      - Key: Version
+        Value: !Ref ArcadeDBVersion
 
   ArcadeDBRecoveryAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -380,10 +380,10 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
-        - Name: InstanceId
-          Value: !Ref ArcadeDBInstance
+      - Name: InstanceId
+        Value: !Ref ArcadeDBInstance
       AlarmActions:
-        - !Sub 'arn:aws:automate:${AWS::Region}:ec2:recover'
+      - !Sub 'arn:aws:automate:${AWS::Region}:ec2:recover'
 
 Outputs:
   InstanceId:
