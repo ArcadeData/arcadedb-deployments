@@ -1,0 +1,73 @@
+#!/bin/bash
+set -e
+
+systemctl stop arcadedb || true
+
+# The image generates a random root password on first boot. Replace it with the
+# one chosen here: drop the users file the first start may have created.
+# Every node gets the same password, so every node derives the same root user.
+rm -f /opt/arcadedb/config/server-users.jsonl /home/ubuntu/arcadedb-root-password.txt
+
+# Build ARCADEDB_SETTINGS from named parameters
+SETTINGS="-Darcadedb.server.rootPassword=${arcadedb_root_password}"
+SETTINGS="$SETTINGS -Darcadedb.server.databaseDirectory=/var/lib/arcadedb/databases"
+SETTINGS="$SETTINGS -Darcadedb.server.backupDirectory=/var/lib/arcadedb/backups"
+SETTINGS="$SETTINGS -Darcadedb.server.mode=${arcadedb_server_mode}"
+SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${arcadedb_http_port}"
+
+# High availability (Raft). The server name must be node-<0-based index>.
+# Peers are found through the Route 53 private zone; the script waits for
+# their DNS names before starting ArcadeDB (see below).
+SETTINGS="$SETTINGS -Darcadedb.server.name=${node_name}"
+SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
+SETTINGS="$SETTINGS -Darcadedb.ha.serverList=${ha_server_list}"
+SETTINGS="$SETTINGS -Darcadedb.ha.replicationFactor=3"
+SETTINGS="$SETTINGS -Darcadedb.server.readinessRequiresHA=true"
+
+# Conditionally add plugins if provided
+%{ if arcadedb_plugins != "" ~}
+SETTINGS="$SETTINGS -Darcadedb.server.plugins=${arcadedb_plugins}"
+%{ endif ~}
+
+# Append any extra user-provided JVM settings
+%{ if arcadedb_java_opts != "" ~}
+SETTINGS="$SETTINGS ${arcadedb_java_opts}"
+%{ endif ~}
+
+# Build JAVA_OPTS with RAM setting
+JAVA_OPTS="-Xms512m -Xmx${arcadedb_max_ram}m -XX:+UseG1GC"
+
+# Create systemd override (canonical way to pass config to ArcadeDB)
+mkdir -p /etc/systemd/system/arcadedb.service.d
+cat > /etc/systemd/system/arcadedb.service.d/override.conf << CONF
+[Service]
+Environment="ARCADEDB_SETTINGS=$SETTINGS"
+Environment="JAVA_OPTS=$JAVA_OPTS"
+CONF
+
+systemctl daemon-reload
+
+# Wait (up to 10 minutes) until every peer name resolves before starting.
+# The Route 53 records are created only after the instances exist, and an
+# early NXDOMAIN can be negatively cached, so poll and flush the cache.
+PEERS="${peer_dns_names}"
+DEADLINE=$(( $(date +%s) + 600 ))
+while true; do
+  MISSING=""
+  for PEER in $PEERS; do
+    if ! getent hosts "$PEER" > /dev/null; then
+      MISSING="$MISSING $PEER"
+    fi
+  done
+  if [ -z "$MISSING" ]; then
+    break
+  fi
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+    echo "WARNING: peer DNS names not resolvable after 600 s:$MISSING; starting ArcadeDB anyway" >&2
+    break
+  fi
+  resolvectl flush-caches 2>/dev/null || true
+  sleep 5
+done
+
+systemctl start arcadedb

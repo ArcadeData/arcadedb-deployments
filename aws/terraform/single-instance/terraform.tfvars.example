@@ -1,0 +1,26 @@
+# Required
+arcadedb_root_password = "MySecurePass123!"
+
+# SSH access — omit to launch without key pair (use SSM Session Manager instead)
+# key_name             = "my-key-pair"
+
+# Network — leave empty to auto-detect the default VPC and subnet
+# vpc_id               = "vpc-xxxxx"
+# subnet_id            = "subnet-xxxxx"
+
+# Optional — uncomment to override defaults
+# instance_type        = "t3.medium"
+# allowed_cidr         = "10.0.0.0/16"
+# volume_size          = 20
+# volume_type          = "gp3"
+# enable_encryption    = true
+
+# ArcadeDB tuning
+# arcadedb_server_mode = "production"
+# arcadedb_http_port   = "2480"
+# arcadedb_plugins     = "Postgres:com.arcadedb.postgres.PostgresProtocolPlugin"
+# arcadedb_max_ram     = "2048"
+# arcadedb_java_opts   = "-Darcadedb.server.defaultDatabases=mydb[root]{import:https://example.com/db.gz}"
+
+# AMI — leave empty to auto-detect the latest ArcadeDB AMI you own
+# ami_id               = "ami-0abcdef1234567890"
