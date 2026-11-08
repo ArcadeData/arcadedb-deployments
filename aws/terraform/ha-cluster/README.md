@@ -2,7 +2,7 @@
 
 Deploys a 3-node ArcadeDB cluster (Raft) on AWS: one EC2 instance per Availability Zone, node discovery through a Route 53 private hosted zone, and an optional internal Network Load Balancer in front of the HTTP API.
 
-> This example is validated statically (`terraform fmt`, `validate`). It has not been applied from this repository, which has no AWS account. Items marked "unverified" below are still to be confirmed by a real deployment.
+> This example is validated statically (`terraform fmt`, `validate`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run.
 
 ## What gets created
 
@@ -28,9 +28,9 @@ Each node's user data writes the same systemd override as the single-instance ex
 -Darcadedb.server.readinessRequiresHA=true
 ```
 
-The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name. Nodes boot in parallel. The Route 53 records are created after the instances, so each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). Cluster formation and time-to-ready are unverified until a live deploy.
+The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name. Nodes boot in parallel. The Route 53 records are created after the instances, so each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). In the test run all three nodes were ready about 4 minutes after the instances started.
 
-The NLB health check is `GET /api/v1/ready` (unauthenticated). With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers are expected to forward writes to the leader, so any node can take a request (unverified on AWS).
+The NLB health check is `GET /api/v1/ready` (unauthenticated). With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers forward writes to the leader, so any node can take a request (a write through the NLB succeeded in the test run).
 
 ## Prerequisites
 
@@ -150,6 +150,17 @@ To reach the nodes without SSH, set `iam_instance_profile` to an existing instan
 ## Cost
 
 This runs three instances, three EBS volumes, an NLB and a hosted zone around the clock. As a rough order of magnitude with the defaults, at on-demand us-east-1 prices: 3 × `m6i.large` (about $0.096/hour each), plus the NLB (about $0.0225/hour plus capacity units), plus 3 × 20 GB gp3, plus $0.50/month for the hosted zone: in the region of $230/month before data transfer and any Marketplace software charge. Cross-AZ traffic (Raft replication, cross-zone load balancing) is billed as data transfer. Check the AWS Pricing Calculator for your region, and destroy the cluster when you are done.
+
+## Verified on AWS
+
+One deployment on 2026-11-08 (Terraform, default VPC of `us-east-1`, `t3.large` nodes, public IPs on so the test could reach the nodes through SSM) passed these checks, then was destroyed without leftovers:
+
+- the three nodes formed one cluster with one leader;
+- a record written through node-0 was readable on all three nodes;
+- a write through the NLB succeeded and was readable afterwards;
+- after stopping the leader, a surviving node became leader and writes still succeeded.
+
+Not covered by that run: replacing a node, changing user data on a running cluster, restoring from a backup, and sustained load. After the leader was stopped, the surviving nodes still reported three members, because a stopped node stays in the configured Raft peer set.
 
 ## Operations notes
 
