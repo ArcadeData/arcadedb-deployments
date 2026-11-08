@@ -41,7 +41,7 @@ aws/
 
 ## Validation
 
-The templates are validated statically in this repository's CI (`terraform fmt` and `validate`, `cfn-lint`). Unlike the other scenarios there is no `start.sh` or `test.sh`, because this repository has no AWS account. The templates are deployed for real by the maintainers' own pipeline. Anything the sub-READMEs mark as "unverified" still needs confirmation on a live deployment.
+The templates are validated statically in this repository's CI (`terraform fmt` and `validate`, `cfn-lint`). Unlike the other scenarios there is no `start.sh` or `test.sh`, because this repository has no AWS account. The templates are deployed for real by the maintainers' own pipeline. On 2026-11-08 both HA examples were deployed once on AWS by that pipeline (3 nodes formed a cluster, a write replicated to every node, a write through the NLB succeeded, and a write succeeded after the leader was stopped), then destroyed. Anything the sub-READMEs still mark as "unverified" has not been exercised yet.
 
 ## Cost warning
 
