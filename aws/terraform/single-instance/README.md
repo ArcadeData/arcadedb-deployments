@@ -6,7 +6,7 @@ Deploys a single ArcadeDB instance on AWS, equivalent to the CloudFormation temp
 
 - Terraform >= 1.0
 - An ArcadeDB AMI: an active AWS Marketplace subscription to the ArcadeDB listing (set `marketplace_product_code`), or provide `ami_id` directly
-- An existing VPC, subnet, and EC2 key pair
+- An existing VPC and subnet; optionally an EC2 key pair for SSH access
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ The root password may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`, with at le
 | Variable            | Required | Default      | Description                |
 |---------------------|----------|--------------|----------------------------|
 | instance_type       | No       | m6i.large    | EC2 instance type (must match the AMI architecture) |
-| key_name            | Yes      | -            | SSH key pair name          |
+| key_name            | No       | _(empty)_    | SSH key pair name; empty launches without SSH key access |
 | vpc_id              | Yes      | -            | VPC ID                     |
 | subnet_id           | Yes      | -            | Subnet ID                  |
 | allowed_cidr        | No       | 10.0.0.0/16  | CIDR for access            |

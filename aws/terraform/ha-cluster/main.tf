@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
 
   required_providers {
     aws = {
@@ -249,6 +249,7 @@ resource "aws_instance" "node" {
   user_data = templatefile("${path.module}/userdata.sh.tftpl", {
     node_name              = local.node_names[count.index]
     ha_server_list         = local.ha_server_list
+    peer_dns_names         = join(" ", local.node_dns_names)
     arcadedb_root_password = var.arcadedb_root_password
     arcadedb_server_mode   = var.arcadedb_server_mode
     arcadedb_http_port     = var.arcadedb_http_port

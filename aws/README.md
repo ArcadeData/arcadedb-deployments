@@ -17,8 +17,8 @@ Two ways to run ArcadeDB on EC2 from the ArcadeDB AWS Marketplace AMI, each avai
 - An AWS account and credentials configured for the AWS CLI
 - An active subscription to the ArcadeDB listing on AWS Marketplace (required to launch its AMI)
 - An existing VPC and subnet(s); the HA cluster needs three subnets in three different Availability Zones, in a VPC with DNS support and DNS hostnames enabled
-- An EC2 key pair
-- [Terraform](https://developer.hashicorp.com/terraform) >= 1.0 for the Terraform examples, or the [AWS CLI](https://aws.amazon.com/cli/) for the CloudFormation templates
+- Optionally, an EC2 key pair (only for SSH access)
+- [Terraform](https://developer.hashicorp.com/terraform) >= 1.2 for `ha-cluster` (>= 1.0 for `single-instance`), or the [AWS CLI](https://aws.amazon.com/cli/) for the CloudFormation templates
 
 ## Layout
 

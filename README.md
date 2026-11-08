@@ -35,7 +35,7 @@ gh workflow run all-modules.yml
 - Docker >= 24.0
 - Docker Compose >= 2.0 (ha-cluster and spring-cluster scenarios)
 - [kind](https://kind.sigs.k8s.io/) >= 0.24.0, [Helm](https://helm.sh/) >= 3.16, `kubectl` (kubernetes and azure-seaweedfs scenarios)
-- [Terraform](https://developer.hashicorp.com/terraform) >= 1.0 or the [AWS CLI](https://aws.amazon.com/cli/), plus an AWS account (aws scenario)
+- [Terraform](https://developer.hashicorp.com/terraform) >= 1.2 (>= 1.0 for the single instance) or the [AWS CLI](https://aws.amazon.com/cli/), plus an AWS account (aws scenario)
 - JDK 25 and Maven 3.9+ (spring-cluster local builds)
 - `curl` and `jq`
 

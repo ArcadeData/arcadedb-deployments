@@ -28,15 +28,16 @@ Each node's user data writes the same systemd override as the single-instance ex
 -Darcadedb.server.readinessRequiresHA=true
 ```
 
-The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name. Nodes boot in parallel; Raft retries peers that are not up yet.
+The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name. Nodes boot in parallel. The Route 53 records are created after the instances, so each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). Cluster formation and time-to-ready are unverified until a live deploy.
 
 The NLB health check is `GET /api/v1/ready` (unauthenticated). With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers are expected to forward writes to the leader, so any node can take a request (unverified on AWS).
 
 ## Prerequisites
 
-- Terraform >= 1.0, AWS provider >= 5.0.
+- Terraform >= 1.2, AWS provider >= 5.0.
 - A VPC with **DNS support and DNS hostnames enabled** (`enableDnsSupport` and `enableDnsHostnames`). Without them the private hosted zone does not resolve and the nodes cannot find each other.
 - **Three subnets in that VPC, each in a different Availability Zone.** The plan fails if two subnets share an AZ or a subnet is outside `vpc_id`.
+- No other private hosted zone with the same name (`private_zone_name`) associated with the VPC, and no other load balancer or target group named `<name_prefix>-nlb` / `<name_prefix>-tg` in the region: for a second cluster in the same VPC use a distinct `private_zone_name` and a distinct `name_prefix`.
 - An ArcadeDB AMI:
   - **AWS Marketplace:** subscribe to the ArcadeDB listing in the Marketplace console first (launching an unsubscribed Marketplace AMI fails), then set `marketplace_product_code` to the code matching `instance_type`:
 
@@ -84,23 +85,25 @@ curl -s -u root:<password> "$STUDIO/api/v1/server?mode=cluster"
 
 **`allowed_cidr` must cover the real clients.** The internal NLB keeps the client's source IP for instance targets, so the node security group sees the client address, not the NLB's. A client outside `allowed_cidr` is dropped even when it reaches the NLB.
 
+Because client IPs are preserved, a node that calls the NLB can be routed back to itself and the connection times out. From a node, call the nodes by their own DNS names (`node-N.<private_zone_name>`) instead of the NLB.
+
 `allowed_cidr` defaults to `10.0.0.0/16`, never `0.0.0.0/0`. Do not set it to `0.0.0.0/0`; especially not together with `associate_public_ip = true`, which would expose the API to the internet.
 
 ## Variables
 
 **Cluster & Network:**
 
-| Variable            | Required | Default           | Description |
-|---------------------|----------|-------------------|-------------|
-| vpc_id              | Yes      | -                 | VPC ID (DNS support and hostnames enabled) |
-| subnet_ids          | Yes      | -                 | Exactly 3 subnet IDs in distinct AZs; node N goes in `subnet_ids[N]` |
-| name_prefix         | No       | arcadedb-ha       | Resource name prefix; also the `Cluster` tag (1-24 chars) |
-| private_zone_name   | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
-| enable_nlb          | No       | true              | Create the internal NLB on the HTTP port |
-| allowed_cidr        | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
-| associate_public_ip | No       | false             | Give each node a public IP |
-| key_name            | No       | _(empty)_         | EC2 key pair; opens port 22 to `allowed_cidr` when set |
-| iam_instance_profile | No      | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this example creates no IAM resources) |
+| Variable             | Required | Default           | Description |
+|----------------------|----------|-------------------|-------------|
+| vpc_id               | Yes      | -                 | VPC ID (DNS support and hostnames enabled) |
+| subnet_ids           | Yes      | -                 | Exactly 3 subnet IDs in distinct AZs; node N goes in `subnet_ids[N]` |
+| name_prefix          | No       | arcadedb-ha       | Resource name prefix; also the `Cluster` tag (1-24 chars) |
+| private_zone_name    | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
+| enable_nlb           | No       | true              | Create the internal NLB on the HTTP port |
+| allowed_cidr         | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
+| associate_public_ip  | No       | false             | Give each node a public IP |
+| key_name             | No       | _(empty)_         | EC2 key pair; opens port 22 to `allowed_cidr` when set |
+| iam_instance_profile | No       | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this example creates no IAM resources) |
 
 **Instances & Storage:**
 

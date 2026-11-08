@@ -251,7 +251,7 @@ aws cloudformation delete-stack --stack-name arcadedb-production
 
 Every resource that supports tags is tagged `Cluster = <NamePrefix>` and `Application = ArcadeDB`, and gets its own `Name` tag (e.g. `arcadedb-ha-node-0`); the root volumes get the instance tags. No IAM role or instance profile is created, so no `--capabilities` flag is needed.
 
-Creation order: the hosted zone first, then the instances, then the A records (they need the instance IPs). The user data only contains the static node DNS names, never instance IPs, so there is no circular dependency. Nodes boot in parallel and Raft retries peers that are not up yet. The stack does not wait for ArcadeDB to start (the image has no `cfn-signal`): stack creation completes before the cluster is ready.
+Creation order: the hosted zone first, then the instances, then the A records (they need the instance IPs). The user data only contains the static node DNS names, never instance IPs, so there is no circular dependency. Nodes boot in parallel; because the A records are created after the instances, each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). Cluster formation and time-to-ready are unverified until a live deploy. The stack does not wait for ArcadeDB to start (the image has no `cfn-signal`): stack creation completes before the cluster is ready.
 
 ### How the cluster is configured
 
@@ -278,7 +278,7 @@ The NLB health check is `GET /api/v1/ready` (unauthenticated, HTTP 200-399). Wit
   aws ec2 modify-vpc-attribute --vpc-id vpc-xxxxx --enable-dns-support '{"Value":true}'
   aws ec2 modify-vpc-attribute --vpc-id vpc-xxxxx --enable-dns-hostnames '{"Value":true}'
   ```
-- **Three subnets in that VPC, each in a different Availability Zone.** CloudFormation does not check this (the Terraform example does, at plan time). Two subnets in the same AZ deploy fine but lose the protection against an AZ outage; check before deploying:
+- **Three subnets in that VPC, each in a different Availability Zone.** This template does not check it (the Terraform example does, at plan time; a CloudFormation `Rules` assertion with `Fn::ValueOf` might, but that is unverified). Two subnets in the same AZ deploy fine but lose the protection against an AZ outage; check before deploying:
 
   ```bash
   aws ec2 describe-subnets --subnet-ids subnet-aaaa subnet-bbbb subnet-cccc \
@@ -332,6 +332,8 @@ The NLB has its own security group, which allows the HTTP port from `AllowedCidr
 
 **`AllowedCidr` must cover the real clients.** The internal NLB keeps the client's source IP for instance targets, so the node security group sees the client address, not the NLB's. A client outside `AllowedCidr` is dropped even when it reaches the NLB.
 
+Because client IPs are preserved, a node that calls the NLB can be routed back to itself and the connection times out. From a node, call the nodes by their own DNS names (`node-N.<PrivateZoneName>`) instead of the NLB.
+
 `AllowedCidr` defaults to `10.0.0.0/16`, never `0.0.0.0/0`. Do not set it to `0.0.0.0/0`; especially not together with `AssociatePublicIp = true`, which would expose the API to the internet.
 
 To reach the nodes without SSH, set `IamInstanceProfile` to an existing instance profile that grants `AmazonSSMManagedInstanceCore` and open a shell with SSM Session Manager (`aws ssm start-session --target <instance-id>`); the nodes need a route to the SSM endpoints (NAT gateway or VPC endpoints).
@@ -340,19 +342,19 @@ To reach the nodes without SSH, set `IamInstanceProfile` to an existing instance
 
 **Cluster & Network:**
 
-| Parameter         | Required | Default           | Description |
-|-------------------|----------|-------------------|-------------|
-| VpcId             | Yes      | -                 | VPC ID (DNS support and hostnames enabled) |
-| Subnet0Id         | Yes      | -                 | Subnet of node-0 |
-| Subnet1Id         | Yes      | -                 | Subnet of node-1 (different AZ from the others) |
-| Subnet2Id         | Yes      | -                 | Subnet of node-2 (different AZ from the others) |
-| NamePrefix        | No       | arcadedb-ha       | Resource name prefix; also the `Cluster` tag (1-24 chars) |
-| PrivateZoneName   | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
-| EnableNlb         | No       | true              | Create the internal NLB on the HTTP port |
-| AllowedCidr       | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
-| AssociatePublicIp | No       | false             | Give each node a public IP |
-| KeyName           | No       | _(empty)_         | EC2 key pair; opens port 22 to `AllowedCidr` when set |
-| IamInstanceProfile | No      | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this template creates no IAM resources) |
+| Parameter          | Required | Default           | Description |
+|--------------------|----------|-------------------|-------------|
+| VpcId              | Yes      | -                 | VPC ID (DNS support and hostnames enabled) |
+| Subnet0Id          | Yes      | -                 | Subnet of node-0 |
+| Subnet1Id          | Yes      | -                 | Subnet of node-1 (different AZ from the others) |
+| Subnet2Id          | Yes      | -                 | Subnet of node-2 (different AZ from the others) |
+| NamePrefix         | No       | arcadedb-ha       | Resource name prefix; also the `Cluster` tag (1-24 chars) |
+| PrivateZoneName    | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
+| EnableNlb          | No       | true              | Create the internal NLB on the HTTP port |
+| AllowedCidr        | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
+| AssociatePublicIp  | No       | false             | Give each node a public IP |
+| KeyName            | No       | _(empty)_         | EC2 key pair; opens port 22 to `AllowedCidr` when set |
+| IamInstanceProfile | No       | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this template creates no IAM resources) |
 
 **Instances & Storage:**
 
