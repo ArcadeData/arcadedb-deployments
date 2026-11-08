@@ -14,6 +14,7 @@ from single-node development setups to production-grade HA clusters.
 
 | Scenario | Description | Orchestrator |
 |----------|-------------|--------------|
+| [AWS](./aws/) | Single EC2 instance or 3-node HA cluster from the Marketplace AMI | Terraform / CloudFormation |
 | [Azure SeaweedFS](./azure-seaweedfs/) | 3-node HA cluster on SeaweedFS, tiered to (emulated) Azure Blob via floci-az | Kubernetes / Helm |
 | [HA Cluster](./ha-cluster/) | 3-node high-availability cluster with Raft consensus | Docker Compose |
 | [Kubernetes](./kubernetes/) | 3-node HA cluster deployed via Helm on a local kind cluster | Kubernetes / Helm |
@@ -34,6 +35,7 @@ gh workflow run all-modules.yml
 - Docker >= 24.0
 - Docker Compose >= 2.0 (ha-cluster and spring-cluster scenarios)
 - [kind](https://kind.sigs.k8s.io/) >= 0.24.0, [Helm](https://helm.sh/) >= 3.16, `kubectl` (kubernetes and azure-seaweedfs scenarios)
+- [Terraform](https://developer.hashicorp.com/terraform) >= 1.0 or the [AWS CLI](https://aws.amazon.com/cli/), plus an AWS account (aws scenario)
 - JDK 25 and Maven 3.9+ (spring-cluster local builds)
 - `curl` and `jq`
 
