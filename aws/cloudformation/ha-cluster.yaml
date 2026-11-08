@@ -1,0 +1,855 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  ArcadeDB 3-node HA cluster (Raft): one EC2 instance per Availability Zone, node discovery through a
+  Route 53 private hosted zone, optional internal Network Load Balancer on the HTTP port.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Cluster and Network Configuration
+        Parameters:
+          - NamePrefix
+          - VpcId
+          - Subnet0Id
+          - Subnet1Id
+          - Subnet2Id
+          - PrivateZoneName
+          - EnableNlb
+          - AllowedCidr
+          - AssociatePublicIp
+          - KeyName
+      - Label:
+          default: Instance Configuration
+        Parameters:
+          - AmiId
+          - InstanceType
+          - ArcadeDBVersion
+      - Label:
+          default: Storage Configuration
+        Parameters:
+          - VolumeSize
+          - VolumeType
+          - EnableEncryption
+      - Label:
+          default: ArcadeDB Configuration
+        Parameters:
+          - ArcadeDBRootPassword
+          - ArcadeDBServerMode
+          - ArcadeDBHttpPort
+          - ArcadeDBPlugins
+          - ArcadeDBMaxRAM
+          - ArcadeDBJavaOpts
+
+    ParameterLabels:
+      NamePrefix:
+        default: Name Prefix
+      VpcId:
+        default: VPC ID
+      Subnet0Id:
+        default: Subnet for node-0
+      Subnet1Id:
+        default: Subnet for node-1
+      Subnet2Id:
+        default: Subnet for node-2
+      PrivateZoneName:
+        default: Private Hosted Zone Name
+      EnableNlb:
+        default: Create Internal NLB
+      AllowedCidr:
+        default: Allowed CIDR Block
+      AssociatePublicIp:
+        default: Associate Public IPs
+      KeyName:
+        default: SSH Key Pair
+      AmiId:
+        default: ArcadeDB AMI ID
+      InstanceType:
+        default: EC2 Instance Type
+      ArcadeDBRootPassword:
+        default: Root Password
+      ArcadeDBServerMode:
+        default: Server Mode
+      ArcadeDBHttpPort:
+        default: HTTP Port
+      ArcadeDBPlugins:
+        default: Plugins
+      ArcadeDBMaxRAM:
+        default: Max RAM (MB)
+      ArcadeDBJavaOpts:
+        default: Additional JVM Settings
+
+Parameters:
+  NamePrefix:
+    Description: >-
+      Prefix for resource names. Also set as the Cluster tag on every resource and used in Name tags
+      (e.g. <NamePrefix>-node-0). 1-24 letters, digits and hyphens, not starting or ending with a hyphen.
+    Type: String
+    Default: arcadedb-ha
+    # Load balancer and target group names are limited to 32 characters; "-nlb" / "-tg" are appended.
+    AllowedPattern: '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,22}[a-zA-Z0-9])?$'
+    ConstraintDescription: Must be 1-24 characters of letters, digits and hyphens, not starting or ending with a hyphen
+
+  InstanceType:
+    Description: >-
+      EC2 instance type for all three nodes. Must match the AMI architecture
+      (x86_64 types for the amd64 AMI, t4g/m7g/r7g/c7g for the arm64 AMI)
+    Type: String
+    Default: m6i.large
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - m6i.large
+      - m6i.xlarge
+      - m6i.2xlarge
+      - m6i.4xlarge
+      - m7i.large
+      - m7i.xlarge
+      - m7i.2xlarge
+      - m7i.4xlarge
+      - r6i.large
+      - r6i.xlarge
+      - r6i.2xlarge
+      - r6i.4xlarge
+      - r7i.large
+      - r7i.xlarge
+      - r7i.2xlarge
+      - r7i.4xlarge
+      - c6i.large
+      - c6i.xlarge
+      - c6i.2xlarge
+      - c6i.4xlarge
+      - c7i.large
+      - c7i.xlarge
+      - c7i.2xlarge
+      - c7i.4xlarge
+      - t4g.medium
+      - t4g.large
+      - t4g.xlarge
+      - m7g.large
+      - m7g.xlarge
+      - m7g.2xlarge
+      - m7g.4xlarge
+      - r7g.large
+      - r7g.xlarge
+      - r7g.2xlarge
+      - r7g.4xlarge
+      - c7g.large
+      - c7g.xlarge
+      - c7g.2xlarge
+      - c7g.4xlarge
+    ConstraintDescription: Must be a valid EC2 instance type
+
+  AmiId:
+    Description: >-
+      ArcadeDB AMI ID for this region. Use the amd64 AMI with x86_64 instance types and the
+      arm64 AMI with Graviton (t4g, m7g, r7g, c7g) instance types.
+    Type: AWS::EC2::Image::Id
+
+  KeyName:
+    Description: >-
+      Name of an existing EC2 KeyPair for SSH access. If set, port 22 is opened to AllowedCidr.
+      Leave empty to launch without SSH key access
+    Type: String
+    Default: ''
+
+  ArcadeDBVersion:
+    Description: ArcadeDB version (informational tag)
+    Type: String
+    Default: '26.11.1'
+
+  VpcId:
+    Description: >-
+      VPC ID where the cluster is deployed. The VPC must have DNS support and DNS hostnames enabled
+      (needed by the Route 53 private hosted zone)
+    Type: AWS::EC2::VPC::Id
+
+  Subnet0Id:
+    Description: Subnet for node-0. The three subnets must be in VpcId and in three different Availability Zones
+    Type: AWS::EC2::Subnet::Id
+
+  Subnet1Id:
+    Description: Subnet for node-1. The three subnets must be in VpcId and in three different Availability Zones
+    Type: AWS::EC2::Subnet::Id
+
+  Subnet2Id:
+    Description: Subnet for node-2. The three subnets must be in VpcId and in three different Availability Zones
+    Type: AWS::EC2::Subnet::Id
+
+  AllowedCidr:
+    Description: >-
+      CIDR block allowed to reach the ArcadeDB HTTP API (and SSH when KeyName is set), e.g. 10.0.0.0/16.
+      The internal NLB preserves client IPs, so this must cover the real clients. Never use 0.0.0.0/0
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    ConstraintDescription: Must be a valid IPv4 CIDR block, e.g. 10.0.0.0/16
+
+  AssociatePublicIp:
+    Description: Give each node a public IP address. Off by default, the nodes are meant to be reached inside the VPC
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  PrivateZoneName:
+    Description: >-
+      Name of the Route 53 private hosted zone created for node discovery.
+      Nodes are registered as node-0.<zone>, node-1.<zone>, node-2.<zone>
+    Type: String
+    Default: arcadedb.internal
+    AllowedPattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+    ConstraintDescription: Must be a lowercase DNS domain name such as arcadedb.internal (no trailing dot)
+
+  EnableNlb:
+    Description: Create an internal Network Load Balancer on the HTTP port in front of the three nodes
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  VolumeSize:
+    Description: Size of each node's EBS root volume in GB
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 16384
+
+  VolumeType:
+    Description: EBS volume type
+    Type: String
+    Default: gp3
+    AllowedValues:
+      - gp3
+      - gp2
+      - io2
+
+  EnableEncryption:
+    Description: Enable EBS volume encryption
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  ArcadeDBRootPassword:
+    Description: >-
+      Root password for ArcadeDB, the same on every node (8+ chars with lowercase, uppercase, a number and
+      one of @!#^+=._&-). Other characters are rejected because the password is passed through the shell
+      and systemd. It is stored in the instance user data, so change it after the first login.
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@!#^+=._&-])[A-Za-z\d@!#^+=._&-]{8,}$'
+    ConstraintDescription: Must contain lowercase, uppercase, a number and one of @!#^+=._&- (no other characters)
+
+  ArcadeDBServerMode:
+    Description: ArcadeDB server mode
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - test
+      - production
+
+  ArcadeDBHttpPort:
+    Description: >-
+      HTTP port for ArcadeDB API and Studio (also used in the HA server list and by the NLB).
+      Must not be 2434, the Raft port
+    Type: String
+    Default: '2480'
+    AllowedPattern: '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
+    ConstraintDescription: Must be a port number between 1 and 65535
+
+  ArcadeDBPlugins:
+    Description: >-
+      Comma-separated list of plugins, e.g.
+      Postgres:com.arcadedb.postgres.PostgresProtocolPlugin
+    Type: String
+    Default: ''
+
+  ArcadeDBMaxRAM:
+    Description: Max heap size in MB (sets JVM -Xmx)
+    Type: String
+    Default: '2048'
+
+  ArcadeDBJavaOpts:
+    Description: >-
+      Additional -Darcadedb.* JVM flags for advanced tuning
+      (appended as-is to ARCADEDB_SETTINGS on every node)
+    Type: String
+    Default: ''
+
+# Checked before any resource is created. CloudFormation cannot compare the subnets'
+# Availability Zones here, so "three distinct AZs" is a documented requirement only.
+Rules:
+  HttpPortIsNotRaftPort:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ArcadeDBHttpPort, '2434']]
+        AssertDescription: ArcadeDBHttpPort must not be 2434, which is the Raft port
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+  EnableNlb: !Equals [!Ref EnableNlb, 'true']
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Security groups
+  # ---------------------------------------------------------------------------
+
+  NodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ArcadeDB HA cluster nodes
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ArcadeDBHttpPort
+          ToPort: !Ref ArcadeDBHttpPort
+          CidrIp: !Ref AllowedCidr
+          Description: ArcadeDB HTTP API and Studio from clients
+        - !If
+          - HasKeyName
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Ref AllowedCidr
+            Description: SSH access
+          - !Ref AWS::NoValue
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-sg'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+
+  # Raft only from the node security group itself.
+  NodeRaftIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt NodeSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 2434
+      ToPort: 2434
+      SourceSecurityGroupId: !GetAtt NodeSecurityGroup.GroupId
+      Description: ArcadeDB Raft between cluster nodes
+
+  NodeHttpPeerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt NodeSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: !Ref ArcadeDBHttpPort
+      ToPort: !Ref ArcadeDBHttpPort
+      SourceSecurityGroupId: !GetAtt NodeSecurityGroup.GroupId
+      Description: ArcadeDB HTTP API between cluster nodes
+
+  # The NLB gets its own security group. Its health checks come from its private IPs
+  # in the node subnets; CloudFormation cannot read a subnet's CIDR from a parameter,
+  # so the nodes allow the HTTP port from this group instead of from the subnet CIDRs.
+  # Client traffic through the NLB keeps the client IP and is covered by AllowedCidr.
+  NlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: EnableNlb
+    Properties:
+      GroupDescription: ArcadeDB HA cluster internal NLB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ArcadeDBHttpPort
+          ToPort: !Ref ArcadeDBHttpPort
+          CidrIp: !Ref AllowedCidr
+          Description: ArcadeDB HTTP API and Studio from clients
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-nlb-sg'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+
+  NodeHttpFromNlbIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: EnableNlb
+    Properties:
+      GroupId: !GetAtt NodeSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: !Ref ArcadeDBHttpPort
+      ToPort: !Ref ArcadeDBHttpPort
+      SourceSecurityGroupId: !GetAtt NlbSecurityGroup.GroupId
+      Description: NLB health checks
+
+  # ---------------------------------------------------------------------------
+  # Route 53 private hosted zone (node discovery)
+  # Requires enableDnsSupport and enableDnsHostnames on the VPC.
+  # Created before the instances (DependsOn), the A records after them.
+  # ---------------------------------------------------------------------------
+
+  PrivateZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref PrivateZoneName
+      HostedZoneConfig:
+        Comment: !Sub 'ArcadeDB HA cluster ${NamePrefix} node discovery'
+      VPCs:
+        - VPCId: !Ref VpcId
+          VPCRegion: !Ref AWS::Region
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-zone'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+
+  # ---------------------------------------------------------------------------
+  # EC2 instances (node-0, node-1, node-2)
+  # ---------------------------------------------------------------------------
+
+  # Requires IMDSv2 (session tokens) on the instances. AWS::EC2::Instance cannot set this itself.
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 1
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value: !Sub '${NamePrefix}-node'
+            - Key: Cluster
+              Value: !Ref NamePrefix
+            - Key: Application
+              Value: ArcadeDB
+
+  # The user data of the three nodes differs only by the server name. The server list
+  # uses the static DNS names of the private zone, never the instance IPs, so the
+  # instances do not depend on each other or on the A records.
+  Node0:
+    Type: AWS::EC2::Instance
+    DependsOn: PrivateZone
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          SubnetId: !Ref Subnet0Id
+          GroupSet:
+            - !GetAtt NodeSecurityGroup.GroupId
+          AssociatePublicIpAddress: !Ref AssociatePublicIp
+          DeleteOnTermination: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: !Ref VolumeType
+            Encrypted: !Ref EnableEncryption
+            DeleteOnTermination: true
+      # Copies the instance tags (Name, Cluster, ...) to the root volume.
+      PropagateTagsToVolumeOnCreation: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          systemctl stop arcadedb || true
+
+          # The image generates a random root password on first boot. Replace it with the
+          # one chosen in this stack: drop the users file the first start may have created.
+          # Every node gets the same password, so every node derives the same root user.
+          rm -f /opt/arcadedb/config/server-users.jsonl /home/ubuntu/arcadedb-root-password.txt
+
+          # Build ARCADEDB_SETTINGS from named CF parameters
+          SETTINGS="-Darcadedb.server.rootPassword=${ArcadeDBRootPassword}"
+          SETTINGS="$SETTINGS -Darcadedb.server.databaseDirectory=/var/lib/arcadedb/databases"
+          SETTINGS="$SETTINGS -Darcadedb.server.backupDirectory=/var/lib/arcadedb/backups"
+          SETTINGS="$SETTINGS -Darcadedb.server.mode=${ArcadeDBServerMode}"
+          SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
+
+          # High availability (Raft). The server name must be node-<0-based index>.
+          # Peers are found through the Route 53 private zone; Raft retries peers that
+          # are not up yet, so no wait loop is needed here.
+          SETTINGS="$SETTINGS -Darcadedb.server.name=node-0"
+          SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
+          SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
+          SETTINGS="$SETTINGS -Darcadedb.ha.replicationFactor=3"
+          SETTINGS="$SETTINGS -Darcadedb.server.readinessRequiresHA=true"
+
+          # Conditionally add plugins if provided
+          if [ -n "${ArcadeDBPlugins}" ]; then
+            SETTINGS="$SETTINGS -Darcadedb.server.plugins=${ArcadeDBPlugins}"
+          fi
+
+          # Append any extra user-provided JVM settings
+          if [ -n "${ArcadeDBJavaOpts}" ]; then
+            SETTINGS="$SETTINGS ${ArcadeDBJavaOpts}"
+          fi
+
+          # Build JAVA_OPTS with RAM setting
+          JAVA_OPTS="-Xms512m -Xmx${ArcadeDBMaxRAM}m -XX:+UseG1GC"
+
+          # Create systemd override (canonical way to pass config to ArcadeDB)
+          mkdir -p /etc/systemd/system/arcadedb.service.d
+          cat > /etc/systemd/system/arcadedb.service.d/override.conf << CONF
+          [Service]
+          Environment="ARCADEDB_SETTINGS=$SETTINGS"
+          Environment="JAVA_OPTS=$JAVA_OPTS"
+          CONF
+
+          systemctl daemon-reload
+          systemctl start arcadedb
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-node-0'
+        - Key: Node
+          Value: node-0
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+        - Key: Version
+          Value: !Ref ArcadeDBVersion
+
+  Node1:
+    Type: AWS::EC2::Instance
+    DependsOn: PrivateZone
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          SubnetId: !Ref Subnet1Id
+          GroupSet:
+            - !GetAtt NodeSecurityGroup.GroupId
+          AssociatePublicIpAddress: !Ref AssociatePublicIp
+          DeleteOnTermination: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: !Ref VolumeType
+            Encrypted: !Ref EnableEncryption
+            DeleteOnTermination: true
+      # Copies the instance tags (Name, Cluster, ...) to the root volume.
+      PropagateTagsToVolumeOnCreation: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          systemctl stop arcadedb || true
+
+          # The image generates a random root password on first boot. Replace it with the
+          # one chosen in this stack: drop the users file the first start may have created.
+          # Every node gets the same password, so every node derives the same root user.
+          rm -f /opt/arcadedb/config/server-users.jsonl /home/ubuntu/arcadedb-root-password.txt
+
+          # Build ARCADEDB_SETTINGS from named CF parameters
+          SETTINGS="-Darcadedb.server.rootPassword=${ArcadeDBRootPassword}"
+          SETTINGS="$SETTINGS -Darcadedb.server.databaseDirectory=/var/lib/arcadedb/databases"
+          SETTINGS="$SETTINGS -Darcadedb.server.backupDirectory=/var/lib/arcadedb/backups"
+          SETTINGS="$SETTINGS -Darcadedb.server.mode=${ArcadeDBServerMode}"
+          SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
+
+          # High availability (Raft). The server name must be node-<0-based index>.
+          # Peers are found through the Route 53 private zone; Raft retries peers that
+          # are not up yet, so no wait loop is needed here.
+          SETTINGS="$SETTINGS -Darcadedb.server.name=node-1"
+          SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
+          SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
+          SETTINGS="$SETTINGS -Darcadedb.ha.replicationFactor=3"
+          SETTINGS="$SETTINGS -Darcadedb.server.readinessRequiresHA=true"
+
+          # Conditionally add plugins if provided
+          if [ -n "${ArcadeDBPlugins}" ]; then
+            SETTINGS="$SETTINGS -Darcadedb.server.plugins=${ArcadeDBPlugins}"
+          fi
+
+          # Append any extra user-provided JVM settings
+          if [ -n "${ArcadeDBJavaOpts}" ]; then
+            SETTINGS="$SETTINGS ${ArcadeDBJavaOpts}"
+          fi
+
+          # Build JAVA_OPTS with RAM setting
+          JAVA_OPTS="-Xms512m -Xmx${ArcadeDBMaxRAM}m -XX:+UseG1GC"
+
+          # Create systemd override (canonical way to pass config to ArcadeDB)
+          mkdir -p /etc/systemd/system/arcadedb.service.d
+          cat > /etc/systemd/system/arcadedb.service.d/override.conf << CONF
+          [Service]
+          Environment="ARCADEDB_SETTINGS=$SETTINGS"
+          Environment="JAVA_OPTS=$JAVA_OPTS"
+          CONF
+
+          systemctl daemon-reload
+          systemctl start arcadedb
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-node-1'
+        - Key: Node
+          Value: node-1
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+        - Key: Version
+          Value: !Ref ArcadeDBVersion
+
+  Node2:
+    Type: AWS::EC2::Instance
+    DependsOn: PrivateZone
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          SubnetId: !Ref Subnet2Id
+          GroupSet:
+            - !GetAtt NodeSecurityGroup.GroupId
+          AssociatePublicIpAddress: !Ref AssociatePublicIp
+          DeleteOnTermination: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: !Ref VolumeType
+            Encrypted: !Ref EnableEncryption
+            DeleteOnTermination: true
+      # Copies the instance tags (Name, Cluster, ...) to the root volume.
+      PropagateTagsToVolumeOnCreation: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          systemctl stop arcadedb || true
+
+          # The image generates a random root password on first boot. Replace it with the
+          # one chosen in this stack: drop the users file the first start may have created.
+          # Every node gets the same password, so every node derives the same root user.
+          rm -f /opt/arcadedb/config/server-users.jsonl /home/ubuntu/arcadedb-root-password.txt
+
+          # Build ARCADEDB_SETTINGS from named CF parameters
+          SETTINGS="-Darcadedb.server.rootPassword=${ArcadeDBRootPassword}"
+          SETTINGS="$SETTINGS -Darcadedb.server.databaseDirectory=/var/lib/arcadedb/databases"
+          SETTINGS="$SETTINGS -Darcadedb.server.backupDirectory=/var/lib/arcadedb/backups"
+          SETTINGS="$SETTINGS -Darcadedb.server.mode=${ArcadeDBServerMode}"
+          SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
+
+          # High availability (Raft). The server name must be node-<0-based index>.
+          # Peers are found through the Route 53 private zone; Raft retries peers that
+          # are not up yet, so no wait loop is needed here.
+          SETTINGS="$SETTINGS -Darcadedb.server.name=node-2"
+          SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
+          SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
+          SETTINGS="$SETTINGS -Darcadedb.ha.replicationFactor=3"
+          SETTINGS="$SETTINGS -Darcadedb.server.readinessRequiresHA=true"
+
+          # Conditionally add plugins if provided
+          if [ -n "${ArcadeDBPlugins}" ]; then
+            SETTINGS="$SETTINGS -Darcadedb.server.plugins=${ArcadeDBPlugins}"
+          fi
+
+          # Append any extra user-provided JVM settings
+          if [ -n "${ArcadeDBJavaOpts}" ]; then
+            SETTINGS="$SETTINGS ${ArcadeDBJavaOpts}"
+          fi
+
+          # Build JAVA_OPTS with RAM setting
+          JAVA_OPTS="-Xms512m -Xmx${ArcadeDBMaxRAM}m -XX:+UseG1GC"
+
+          # Create systemd override (canonical way to pass config to ArcadeDB)
+          mkdir -p /etc/systemd/system/arcadedb.service.d
+          cat > /etc/systemd/system/arcadedb.service.d/override.conf << CONF
+          [Service]
+          Environment="ARCADEDB_SETTINGS=$SETTINGS"
+          Environment="JAVA_OPTS=$JAVA_OPTS"
+          CONF
+
+          systemctl daemon-reload
+          systemctl start arcadedb
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-node-2'
+        - Key: Node
+          Value: node-2
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+        - Key: Version
+          Value: !Ref ArcadeDBVersion
+
+  # ---------------------------------------------------------------------------
+  # A records: node-N.<zone> -> node N private IP (created after the instances)
+  # ---------------------------------------------------------------------------
+
+  Node0Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref PrivateZone
+      Name: !Sub 'node-0.${PrivateZoneName}'
+      Type: A
+      TTL: '60'
+      ResourceRecords:
+        - !GetAtt Node0.PrivateIp
+
+  Node1Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref PrivateZone
+      Name: !Sub 'node-1.${PrivateZoneName}'
+      Type: A
+      TTL: '60'
+      ResourceRecords:
+        - !GetAtt Node1.PrivateIp
+
+  Node2Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref PrivateZone
+      Name: !Sub 'node-2.${PrivateZoneName}'
+      Type: A
+      TTL: '60'
+      ResourceRecords:
+        - !GetAtt Node2.PrivateIp
+
+  # ---------------------------------------------------------------------------
+  # Internal Network Load Balancer (optional, EnableNlb)
+  # ---------------------------------------------------------------------------
+
+  Nlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: EnableNlb
+    Properties:
+      Name: !Sub '${NamePrefix}-nlb'
+      Type: network
+      Scheme: internal
+      Subnets:
+        - !Ref Subnet0Id
+        - !Ref Subnet1Id
+        - !Ref Subnet2Id
+      SecurityGroups:
+        - !GetAtt NlbSecurityGroup.GroupId
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-nlb'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+
+  # /api/v1/ready is unauthenticated. With readinessRequiresHA=true a node only
+  # reports ready once it is part of the cluster.
+  NlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: EnableNlb
+    Properties:
+      Name: !Sub '${NamePrefix}-tg'
+      Port: !Ref ArcadeDBHttpPort
+      Protocol: TCP
+      TargetType: instance
+      VpcId: !Ref VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /api/v1/ready
+      HealthCheckPort: traffic-port
+      Matcher:
+        HttpCode: '200-399'
+      HealthCheckIntervalSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Targets:
+        - Id: !Ref Node0
+          Port: !Ref ArcadeDBHttpPort
+        - Id: !Ref Node1
+          Port: !Ref ArcadeDBHttpPort
+        - Id: !Ref Node2
+          Port: !Ref ArcadeDBHttpPort
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamePrefix}-tg'
+        - Key: Cluster
+          Value: !Ref NamePrefix
+        - Key: Application
+          Value: ArcadeDB
+
+  NlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: EnableNlb
+    Properties:
+      LoadBalancerArn: !Ref Nlb
+      Port: !Ref ArcadeDBHttpPort
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NlbTargetGroup
+
+Outputs:
+  NlbDnsName:
+    Condition: EnableNlb
+    Description: DNS name of the internal Network Load Balancer (only when EnableNlb is true)
+    Value: !GetAtt Nlb.DNSName
+
+  InstanceIds:
+    Description: Instance IDs of node-0, node-1, node-2 (comma-separated, in that order)
+    Value: !Join [',', [!Ref Node0, !Ref Node1, !Ref Node2]]
+
+  PrivateIps:
+    Description: Private IP addresses of node-0, node-1, node-2 (comma-separated, in that order)
+    Value: !Join [',', [!GetAtt Node0.PrivateIp, !GetAtt Node1.PrivateIp, !GetAtt Node2.PrivateIp]]
+
+  NodeDnsNames:
+    Description: DNS names of node-0, node-1, node-2 in the private hosted zone (resolvable only inside the VPC)
+    Value: !Sub 'node-0.${PrivateZoneName},node-1.${PrivateZoneName},node-2.${PrivateZoneName}'
+
+  StudioUrl:
+    Description: URL for ArcadeDB Studio, the NLB when enabled, otherwise node-0 (reachable only inside the VPC)
+    Value: !If
+      - EnableNlb
+      - !Sub 'http://${Nlb.DNSName}:${ArcadeDBHttpPort}'
+      - !Sub 'http://node-0.${PrivateZoneName}:${ArcadeDBHttpPort}'
+
+  ZoneName:
+    Description: Name of the Route 53 private hosted zone
+    Value: !Ref PrivateZoneName
+
+  ZoneId:
+    Description: ID of the Route 53 private hosted zone
+    Value: !Ref PrivateZone
+
+  SecurityGroupId:
+    Description: ID of the security group shared by the nodes
+    Value: !GetAtt NodeSecurityGroup.GroupId
