@@ -293,7 +293,7 @@ Rules:
 
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, '']]
-  EnableNlb: !Equals [!Ref EnableNlb, 'true']
+  NlbEnabled: !Equals [!Ref EnableNlb, 'true']
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -358,7 +358,7 @@ Resources:
   # Client traffic through the NLB keeps the client IP and is covered by AllowedCidr.
   NlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Properties:
       GroupDescription: ArcadeDB HA cluster internal NLB
       VpcId: !Ref VpcId
@@ -382,7 +382,7 @@ Resources:
 
   NodeHttpFromNlbIngress:
     Type: AWS::EC2::SecurityGroupIngress
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Properties:
       GroupId: !GetAtt NodeSecurityGroup.GroupId
       IpProtocol: tcp
@@ -747,7 +747,7 @@ Resources:
 
   Nlb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Properties:
       Name: !Sub '${NamePrefix}-nlb'
       Type: network
@@ -773,7 +773,7 @@ Resources:
   # reports ready once it is part of the cluster.
   NlbTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Properties:
       Name: !Sub '${NamePrefix}-tg'
       Port: !Ref ArcadeDBHttpPort
@@ -808,7 +808,7 @@ Resources:
 
   NlbListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Properties:
       LoadBalancerArn: !Ref Nlb
       Port: !Ref ArcadeDBHttpPort
@@ -819,7 +819,7 @@ Resources:
 
 Outputs:
   NlbDnsName:
-    Condition: EnableNlb
+    Condition: NlbEnabled
     Description: DNS name of the internal Network Load Balancer (only when EnableNlb is true)
     Value: !GetAtt Nlb.DNSName
 
@@ -838,7 +838,7 @@ Outputs:
   StudioUrl:
     Description: URL for ArcadeDB Studio, the NLB when enabled, otherwise node-0 (reachable only inside the VPC)
     Value: !If
-      - EnableNlb
+      - NlbEnabled
       - !Sub 'http://${Nlb.DNSName}:${ArcadeDBHttpPort}'
       - !Sub 'http://node-0.${PrivateZoneName}:${ArcadeDBHttpPort}'
 
