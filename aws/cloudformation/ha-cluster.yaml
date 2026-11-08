@@ -19,6 +19,7 @@ Metadata:
           - AllowedCidr
           - AssociatePublicIp
           - KeyName
+          - IamInstanceProfile
       - Label:
           default: Instance Configuration
         Parameters:
@@ -62,6 +63,8 @@ Metadata:
         default: Associate Public IPs
       KeyName:
         default: SSH Key Pair
+      IamInstanceProfile:
+        default: IAM Instance Profile
       AmiId:
         default: ArcadeDB AMI ID
       InstanceType:
@@ -153,6 +156,16 @@ Parameters:
       Leave empty to launch without SSH key access
     Type: String
     Default: ''
+
+  IamInstanceProfile:
+    Description: >-
+      Name of an existing IAM instance profile to attach to the nodes, e.g. one granting
+      AmazonSSMManagedInstanceCore. Leave empty to attach none
+    Type: String
+    Default: ''
+    MaxLength: 128
+    AllowedPattern: '^[\w+=,.@-]*$'
+    ConstraintDescription: Must be a valid IAM instance profile name, or empty
 
   ArcadeDBVersion:
     Description: ArcadeDB version (informational tag)
@@ -293,6 +306,7 @@ Rules:
 
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+  HasInstanceProfile: !Not [!Equals [!Ref IamInstanceProfile, '']]
   NlbEnabled: !Equals [!Ref EnableNlb, 'true']
 
 Resources:
@@ -447,6 +461,7 @@ Resources:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      IamInstanceProfile: !If [HasInstanceProfile, !Ref IamInstanceProfile, !Ref 'AWS::NoValue']
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
@@ -536,6 +551,7 @@ Resources:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      IamInstanceProfile: !If [HasInstanceProfile, !Ref IamInstanceProfile, !Ref 'AWS::NoValue']
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
@@ -625,6 +641,7 @@ Resources:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      IamInstanceProfile: !If [HasInstanceProfile, !Ref IamInstanceProfile, !Ref 'AWS::NoValue']
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber

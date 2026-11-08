@@ -221,6 +221,7 @@ resource "aws_instance" "node" {
   ami                         = local.ami_id
   instance_type               = var.instance_type
   key_name                    = var.key_name != "" ? var.key_name : null
+  iam_instance_profile        = var.iam_instance_profile != "" ? var.iam_instance_profile : null
   subnet_id                   = var.subnet_ids[count.index]
   vpc_security_group_ids      = [aws_security_group.node.id]
   associate_public_ip_address = var.associate_public_ip

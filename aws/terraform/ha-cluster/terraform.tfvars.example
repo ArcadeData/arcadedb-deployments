@@ -22,6 +22,9 @@ subnet_ids = ["subnet-aaaaa", "subnet-bbbbb", "subnet-ccccc"]
 # SSH access — omit to launch without key pair (port 22 stays closed)
 # key_name             = "my-key-pair"
 
+# Existing IAM instance profile, e.g. one granting AmazonSSMManagedInstanceCore (SSM Session Manager instead of SSH)
+# iam_instance_profile = "my-ssm-instance-profile"
+
 # Optional — uncomment to override defaults
 # instance_type        = "m6i.large"
 # volume_size          = 20

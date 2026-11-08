@@ -334,6 +334,8 @@ The NLB has its own security group, which allows the HTTP port from `AllowedCidr
 
 `AllowedCidr` defaults to `10.0.0.0/16`, never `0.0.0.0/0`. Do not set it to `0.0.0.0/0`; especially not together with `AssociatePublicIp = true`, which would expose the API to the internet.
 
+To reach the nodes without SSH, set `IamInstanceProfile` to an existing instance profile that grants `AmazonSSMManagedInstanceCore` and open a shell with SSM Session Manager (`aws ssm start-session --target <instance-id>`); the nodes need a route to the SSM endpoints (NAT gateway or VPC endpoints).
+
 ### Parameters
 
 **Cluster & Network:**
@@ -350,6 +352,7 @@ The NLB has its own security group, which allows the HTTP port from `AllowedCidr
 | AllowedCidr       | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
 | AssociatePublicIp | No       | false             | Give each node a public IP |
 | KeyName           | No       | _(empty)_         | EC2 key pair; opens port 22 to `AllowedCidr` when set |
+| IamInstanceProfile | No      | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this template creates no IAM resources) |
 
 **Instances & Storage:**
 

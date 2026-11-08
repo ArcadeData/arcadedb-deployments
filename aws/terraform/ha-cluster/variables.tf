@@ -35,6 +35,12 @@ variable "key_name" {
   default     = ""
 }
 
+variable "iam_instance_profile" {
+  description = "Name of an existing IAM instance profile to attach to the nodes, e.g. one granting AmazonSSMManagedInstanceCore. Empty = none."
+  type        = string
+  default     = ""
+}
+
 variable "arcadedb_version" {
   description = "ArcadeDB version (informational tag)"
   type        = string

@@ -100,6 +100,7 @@ curl -s -u root:<password> "$STUDIO/api/v1/server?mode=cluster"
 | allowed_cidr        | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
 | associate_public_ip | No       | false             | Give each node a public IP |
 | key_name            | No       | _(empty)_         | EC2 key pair; opens port 22 to `allowed_cidr` when set |
+| iam_instance_profile | No      | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this example creates no IAM resources) |
 
 **Instances & Storage:**
 
@@ -127,6 +128,8 @@ Allowed instance types: `t3.{medium,large,xlarge}`, `{m6i,m7i,r6i,r7i,c6i,c7i}.{
 | arcadedb_java_opts     | No       | _(empty)_  | Additional `-Darcadedb.*` JVM flags (appended as-is on every node) |
 
 The root password may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`, with at least one lowercase, uppercase, digit and special character. It ends up in the instance user data and in the Terraform state; protect the state and change the password after the first login.
+
+To reach the nodes without SSH, set `iam_instance_profile` to an existing instance profile that grants `AmazonSSMManagedInstanceCore` and open a shell with SSM Session Manager (`aws ssm start-session --target <instance-id>`); the nodes need a route to the SSM endpoints (NAT gateway or VPC endpoints).
 
 ## Outputs
 
