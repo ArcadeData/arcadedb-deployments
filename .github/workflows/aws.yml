@@ -1,0 +1,62 @@
+name: AWS CI
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    paths:
+      - aws/**
+      - .github/workflows/aws.yml
+  pull_request:
+    paths:
+      - aws/**
+      - .github/workflows/aws.yml
+
+jobs:
+  terraform:
+    name: Terraform (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [single-instance, ha-cluster]
+    defaults:
+      run:
+        working-directory: aws/terraform/${{ matrix.dir }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+  cloudformation:
+    name: CloudFormation (${{ matrix.template }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [single-instance, ha-cluster]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Lint template
+        run: cfn-lint aws/cloudformation/${{ matrix.template }}.yaml

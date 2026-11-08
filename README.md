@@ -1,6 +1,7 @@
 # ArcadeDB Deployment Scenarios
 
 [![All Modules CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml)
+[![AWS CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/aws.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/aws.yml)
 [![Azure SeaweedFS CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml)
 [![HA Cluster CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml)
 [![Kubernetes CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml)
