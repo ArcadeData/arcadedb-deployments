@@ -1,0 +1,36 @@
+# Required
+arcadedb_root_password = "MySecurePass123!"
+vpc_id                 = "vpc-xxxxx"
+# Three subnets in vpc_id, each in a different Availability Zone
+subnet_ids = ["subnet-aaaaa", "subnet-bbbbb", "subnet-ccccc"]
+
+# AMI — set the Marketplace product code matching instance_type
+# (x86_64: a8ux0w7t0kz9iam85pf4lgoa9, arm64: 7i9pstc6vwgjehw76ou7xa1wa),
+# or set ami_id directly. Leave both empty to use the latest ArcadeDB AMI you own.
+# marketplace_product_code = "a8ux0w7t0kz9iam85pf4lgoa9"
+# ami_id                   = "ami-0abcdef1234567890"
+
+# Cluster
+# name_prefix          = "arcadedb-ha"
+# private_zone_name    = "arcadedb.internal"
+# enable_nlb           = true
+
+# Network — allowed_cidr must cover the real clients (the internal NLB preserves client IPs)
+# allowed_cidr         = "10.0.0.0/16"
+# associate_public_ip  = false
+
+# SSH access — omit to launch without key pair (port 22 stays closed)
+# key_name             = "my-key-pair"
+
+# Optional — uncomment to override defaults
+# instance_type        = "m6i.large"
+# volume_size          = 20
+# volume_type          = "gp3"
+# enable_encryption    = true
+
+# ArcadeDB tuning
+# arcadedb_server_mode = "production"
+# arcadedb_http_port   = "2480"
+# arcadedb_plugins     = "Postgres:com.arcadedb.postgres.PostgresProtocolPlugin"
+# arcadedb_max_ram     = "2048"
+# arcadedb_java_opts   = "-Darcadedb.server.defaultDatabases=mydb[root]"

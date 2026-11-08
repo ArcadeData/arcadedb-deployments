@@ -1,0 +1,49 @@
+#!/bin/bash
+set -e
+
+systemctl stop arcadedb || true
+
+# The image generates a random root password on first boot. Replace it with the
+# one chosen here: drop the users file the first start may have created.
+# Every node gets the same password, so every node derives the same root user.
+rm -f /opt/arcadedb/config/server-users.jsonl /home/ubuntu/arcadedb-root-password.txt
+
+# Build ARCADEDB_SETTINGS from named parameters
+SETTINGS="-Darcadedb.server.rootPassword=${arcadedb_root_password}"
+SETTINGS="$SETTINGS -Darcadedb.server.databaseDirectory=/var/lib/arcadedb/databases"
+SETTINGS="$SETTINGS -Darcadedb.server.backupDirectory=/var/lib/arcadedb/backups"
+SETTINGS="$SETTINGS -Darcadedb.server.mode=${arcadedb_server_mode}"
+SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${arcadedb_http_port}"
+
+# High availability (Raft). The server name must be node-<0-based index>.
+# Peers are found through the Route 53 private zone; Raft retries peers that
+# are not up yet, so no wait loop is needed here.
+SETTINGS="$SETTINGS -Darcadedb.server.name=${node_name}"
+SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
+SETTINGS="$SETTINGS -Darcadedb.ha.serverList=${ha_server_list}"
+SETTINGS="$SETTINGS -Darcadedb.ha.replicationFactor=3"
+SETTINGS="$SETTINGS -Darcadedb.server.readinessRequiresHA=true"
+
+# Conditionally add plugins if provided
+%{ if arcadedb_plugins != "" ~}
+SETTINGS="$SETTINGS -Darcadedb.server.plugins=${arcadedb_plugins}"
+%{ endif ~}
+
+# Append any extra user-provided JVM settings
+%{ if arcadedb_java_opts != "" ~}
+SETTINGS="$SETTINGS ${arcadedb_java_opts}"
+%{ endif ~}
+
+# Build JAVA_OPTS with RAM setting
+JAVA_OPTS="-Xms512m -Xmx${arcadedb_max_ram}m -XX:+UseG1GC"
+
+# Create systemd override (canonical way to pass config to ArcadeDB)
+mkdir -p /etc/systemd/system/arcadedb.service.d
+cat > /etc/systemd/system/arcadedb.service.d/override.conf << CONF
+[Service]
+Environment="ARCADEDB_SETTINGS=$SETTINGS"
+Environment="JAVA_OPTS=$JAVA_OPTS"
+CONF
+
+systemctl daemon-reload
+systemctl start arcadedb
