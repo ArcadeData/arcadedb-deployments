@@ -200,7 +200,9 @@ Parameters:
     ConstraintDescription: Must be a valid IPv4 CIDR block, e.g. 10.0.0.0/16
 
   AssociatePublicIp:
-    Description: Give each node a public IP address. Off by default, the nodes are meant to be reached inside the VPC
+    Description: >-
+      Give each node an Elastic IP (the VPC needs an internet gateway). Off by default, the nodes are
+      meant to be reached inside the VPC
     Type: String
     Default: 'false'
     AllowedValues:
@@ -309,6 +311,7 @@ Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, '']]
   HasInstanceProfile: !Not [!Equals [!Ref IamInstanceProfile, '']]
   NlbEnabled: !Equals [!Ref EnableNlb, 'true']
+  PublicIpEnabled: !Equals [!Ref AssociatePublicIp, 'true']
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -409,7 +412,7 @@ Resources:
   # ---------------------------------------------------------------------------
   # Route 53 private hosted zone (node discovery)
   # Requires enableDnsSupport and enableDnsHostnames on the VPC.
-  # Created before the instances (DependsOn), the A records after them.
+  # Order: zone and ENIs, then the A records, then the instances (DependsOn).
   # ---------------------------------------------------------------------------
 
   PrivateZone:
@@ -428,6 +431,132 @@ Resources:
         Value: !Ref NamePrefix
       - Key: Application
         Value: ArcadeDB
+
+  # ---------------------------------------------------------------------------
+  # Network interfaces (one per node, fixed private IP)
+  # Each node's primary ENI is created before its instance, so its private IP is
+  # known up front: the A records exist before any node boots. An instance
+  # launched with an existing ENI cannot get an auto-assigned public IP, so
+  # AssociatePublicIp gives each ENI an Elastic IP instead (the VPC needs an
+  # internet gateway for that).
+  # ---------------------------------------------------------------------------
+
+  Node0Eni:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref Subnet0Id
+      GroupSet:
+      - !GetAtt NodeSecurityGroup.GroupId
+      Description: !Sub 'ArcadeDB HA ${NamePrefix} node-0'
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-0-eni'
+      - Key: Node
+        Value: node-0
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node1Eni:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref Subnet1Id
+      GroupSet:
+      - !GetAtt NodeSecurityGroup.GroupId
+      Description: !Sub 'ArcadeDB HA ${NamePrefix} node-1'
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-1-eni'
+      - Key: Node
+        Value: node-1
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node2Eni:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref Subnet2Id
+      GroupSet:
+      - !GetAtt NodeSecurityGroup.GroupId
+      Description: !Sub 'ArcadeDB HA ${NamePrefix} node-2'
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-2-eni'
+      - Key: Node
+        Value: node-2
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node0Eip:
+    Type: AWS::EC2::EIP
+    Condition: PublicIpEnabled
+    Properties:
+      Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-0-eip'
+      - Key: Node
+        Value: node-0
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node0EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: PublicIpEnabled
+    Properties:
+      AllocationId: !GetAtt Node0Eip.AllocationId
+      NetworkInterfaceId: !Ref Node0Eni
+
+  Node1Eip:
+    Type: AWS::EC2::EIP
+    Condition: PublicIpEnabled
+    Properties:
+      Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-1-eip'
+      - Key: Node
+        Value: node-1
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node1EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: PublicIpEnabled
+    Properties:
+      AllocationId: !GetAtt Node1Eip.AllocationId
+      NetworkInterfaceId: !Ref Node1Eni
+
+  Node2Eip:
+    Type: AWS::EC2::EIP
+    Condition: PublicIpEnabled
+    Properties:
+      Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub '${NamePrefix}-node-2-eip'
+      - Key: Node
+        Value: node-2
+      - Key: Cluster
+        Value: !Ref NamePrefix
+      - Key: Application
+        Value: ArcadeDB
+
+  Node2EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: PublicIpEnabled
+    Properties:
+      AllocationId: !GetAtt Node2Eip.AllocationId
+      NetworkInterfaceId: !Ref Node2Eni
 
   # ---------------------------------------------------------------------------
   # EC2 instances (node-0, node-1, node-2)
@@ -453,11 +582,14 @@ Resources:
           Value: ArcadeDB
 
   # The user data of the three nodes differs only by the server name. The server list
-  # uses the static DNS names of the private zone, never the instance IPs, so the
-  # instances do not depend on each other or on the A records.
+  # uses the static DNS names of the private zone, never IPs. The instances wait for
+  # the three A records, so every peer name resolves when ArcadeDB starts.
   Node0:
     Type: AWS::EC2::Instance
-    DependsOn: PrivateZone
+    DependsOn:
+    - Node0Record
+    - Node1Record
+    - Node2Record
     Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
@@ -466,13 +598,10 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      # Subnet and security group come from the ENI, which outlives the instance.
       NetworkInterfaces:
       - DeviceIndex: '0'
-        SubnetId: !Ref Subnet0Id
-        GroupSet:
-        - !GetAtt NodeSecurityGroup.GroupId
-        AssociatePublicIpAddress: !Ref AssociatePublicIp
-        DeleteOnTermination: true
+        NetworkInterfaceId: !Ref Node0Eni
       BlockDeviceMappings:
       - DeviceName: /dev/sda1
         Ebs:
@@ -502,8 +631,9 @@ Resources:
           SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
 
           # High availability (Raft). The server name must be node-<0-based index>.
-          # Peers are found through the Route 53 private zone; the script waits for
-          # their DNS names before starting ArcadeDB (see below).
+          # Peers are found through the Route 53 private zone. Each node has a fixed
+          # private IP (its own ENI) and the A records are created before the instances,
+          # so the peer names already resolve when this script runs.
           SETTINGS="$SETTINGS -Darcadedb.server.name=node-0"
           SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
           SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
@@ -533,29 +663,6 @@ Resources:
 
           systemctl daemon-reload
 
-          # Wait (up to 10 minutes) until every peer name resolves before starting.
-          # The Route 53 records are created only after the instances exist, and an
-          # early NXDOMAIN can be negatively cached, so poll and flush the cache.
-          PEERS="node-0.${PrivateZoneName} node-1.${PrivateZoneName} node-2.${PrivateZoneName}"
-          DEADLINE=$(( $(date +%s) + 600 ))
-          while true; do
-            MISSING=""
-            for PEER in $PEERS; do
-              if ! getent hosts "$PEER" > /dev/null; then
-                MISSING="$MISSING $PEER"
-              fi
-            done
-            if [ -z "$MISSING" ]; then
-              break
-            fi
-            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-              echo "WARNING: peer DNS names not resolvable after 600 s:$MISSING; starting ArcadeDB anyway" >&2
-              break
-            fi
-            resolvectl flush-caches 2>/dev/null || true
-            sleep 5
-          done
-
           systemctl start arcadedb
       Tags:
       - Key: Name
@@ -571,7 +678,10 @@ Resources:
 
   Node1:
     Type: AWS::EC2::Instance
-    DependsOn: PrivateZone
+    DependsOn:
+    - Node0Record
+    - Node1Record
+    - Node2Record
     Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
@@ -580,13 +690,10 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      # Subnet and security group come from the ENI, which outlives the instance.
       NetworkInterfaces:
       - DeviceIndex: '0'
-        SubnetId: !Ref Subnet1Id
-        GroupSet:
-        - !GetAtt NodeSecurityGroup.GroupId
-        AssociatePublicIpAddress: !Ref AssociatePublicIp
-        DeleteOnTermination: true
+        NetworkInterfaceId: !Ref Node1Eni
       BlockDeviceMappings:
       - DeviceName: /dev/sda1
         Ebs:
@@ -616,8 +723,9 @@ Resources:
           SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
 
           # High availability (Raft). The server name must be node-<0-based index>.
-          # Peers are found through the Route 53 private zone; the script waits for
-          # their DNS names before starting ArcadeDB (see below).
+          # Peers are found through the Route 53 private zone. Each node has a fixed
+          # private IP (its own ENI) and the A records are created before the instances,
+          # so the peer names already resolve when this script runs.
           SETTINGS="$SETTINGS -Darcadedb.server.name=node-1"
           SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
           SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
@@ -647,29 +755,6 @@ Resources:
 
           systemctl daemon-reload
 
-          # Wait (up to 10 minutes) until every peer name resolves before starting.
-          # The Route 53 records are created only after the instances exist, and an
-          # early NXDOMAIN can be negatively cached, so poll and flush the cache.
-          PEERS="node-0.${PrivateZoneName} node-1.${PrivateZoneName} node-2.${PrivateZoneName}"
-          DEADLINE=$(( $(date +%s) + 600 ))
-          while true; do
-            MISSING=""
-            for PEER in $PEERS; do
-              if ! getent hosts "$PEER" > /dev/null; then
-                MISSING="$MISSING $PEER"
-              fi
-            done
-            if [ -z "$MISSING" ]; then
-              break
-            fi
-            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-              echo "WARNING: peer DNS names not resolvable after 600 s:$MISSING; starting ArcadeDB anyway" >&2
-              break
-            fi
-            resolvectl flush-caches 2>/dev/null || true
-            sleep 5
-          done
-
           systemctl start arcadedb
       Tags:
       - Key: Name
@@ -685,7 +770,10 @@ Resources:
 
   Node2:
     Type: AWS::EC2::Instance
-    DependsOn: PrivateZone
+    DependsOn:
+    - Node0Record
+    - Node1Record
+    - Node2Record
     Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
@@ -694,13 +782,10 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      # Subnet and security group come from the ENI, which outlives the instance.
       NetworkInterfaces:
       - DeviceIndex: '0'
-        SubnetId: !Ref Subnet2Id
-        GroupSet:
-        - !GetAtt NodeSecurityGroup.GroupId
-        AssociatePublicIpAddress: !Ref AssociatePublicIp
-        DeleteOnTermination: true
+        NetworkInterfaceId: !Ref Node2Eni
       BlockDeviceMappings:
       - DeviceName: /dev/sda1
         Ebs:
@@ -730,8 +815,9 @@ Resources:
           SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${ArcadeDBHttpPort}"
 
           # High availability (Raft). The server name must be node-<0-based index>.
-          # Peers are found through the Route 53 private zone; the script waits for
-          # their DNS names before starting ArcadeDB (see below).
+          # Peers are found through the Route 53 private zone. Each node has a fixed
+          # private IP (its own ENI) and the A records are created before the instances,
+          # so the peer names already resolve when this script runs.
           SETTINGS="$SETTINGS -Darcadedb.server.name=node-2"
           SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
           SETTINGS="$SETTINGS -Darcadedb.ha.serverList=node-0.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-1.${PrivateZoneName}:2434:${ArcadeDBHttpPort},node-2.${PrivateZoneName}:2434:${ArcadeDBHttpPort}"
@@ -761,29 +847,6 @@ Resources:
 
           systemctl daemon-reload
 
-          # Wait (up to 10 minutes) until every peer name resolves before starting.
-          # The Route 53 records are created only after the instances exist, and an
-          # early NXDOMAIN can be negatively cached, so poll and flush the cache.
-          PEERS="node-0.${PrivateZoneName} node-1.${PrivateZoneName} node-2.${PrivateZoneName}"
-          DEADLINE=$(( $(date +%s) + 600 ))
-          while true; do
-            MISSING=""
-            for PEER in $PEERS; do
-              if ! getent hosts "$PEER" > /dev/null; then
-                MISSING="$MISSING $PEER"
-              fi
-            done
-            if [ -z "$MISSING" ]; then
-              break
-            fi
-            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-              echo "WARNING: peer DNS names not resolvable after 600 s:$MISSING; starting ArcadeDB anyway" >&2
-              break
-            fi
-            resolvectl flush-caches 2>/dev/null || true
-            sleep 5
-          done
-
           systemctl start arcadedb
       Tags:
       - Key: Name
@@ -798,7 +861,7 @@ Resources:
         Value: !Ref ArcadeDBVersion
 
   # ---------------------------------------------------------------------------
-  # A records: node-N.<zone> -> node N private IP (created after the instances)
+  # A records: node-N.<zone> -> node N ENI private IP (created before the instances)
   # ---------------------------------------------------------------------------
 
   Node0Record:
@@ -809,7 +872,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-      - !GetAtt Node0.PrivateIp
+      - !GetAtt Node0Eni.PrimaryPrivateIpAddress
 
   Node1Record:
     Type: AWS::Route53::RecordSet
@@ -819,7 +882,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-      - !GetAtt Node1.PrivateIp
+      - !GetAtt Node1Eni.PrimaryPrivateIpAddress
 
   Node2Record:
     Type: AWS::Route53::RecordSet
@@ -829,7 +892,7 @@ Resources:
       Type: A
       TTL: '60'
       ResourceRecords:
-      - !GetAtt Node2.PrivateIp
+      - !GetAtt Node2Eni.PrimaryPrivateIpAddress
 
   # ---------------------------------------------------------------------------
   # Internal Network Load Balancer (optional, EnableNlb)
@@ -919,7 +982,16 @@ Outputs:
 
   PrivateIps:
     Description: Private IP addresses of node-0, node-1, node-2 (comma-separated, in that order)
-    Value: !Join [',', [!GetAtt Node0.PrivateIp, !GetAtt Node1.PrivateIp, !GetAtt Node2.PrivateIp]]
+    Value: !Join [',', [!GetAtt Node0Eni.PrimaryPrivateIpAddress, !GetAtt Node1Eni.PrimaryPrivateIpAddress, !GetAtt Node2Eni.PrimaryPrivateIpAddress]]
+
+  NetworkInterfaceIds:
+    Description: Primary ENI IDs of node-0, node-1, node-2 (comma-separated, in that order); they outlive the instances
+    Value: !Join [',', [!Ref Node0Eni, !Ref Node1Eni, !Ref Node2Eni]]
+
+  PublicIps:
+    Condition: PublicIpEnabled
+    Description: Elastic IPs of node-0, node-1, node-2 (comma-separated, only when AssociatePublicIp is true)
+    Value: !Join [',', [!Ref Node0Eip, !Ref Node1Eip, !Ref Node2Eip]]
 
   NodeDnsNames:
     Description: DNS names of node-0, node-1, node-2 in the private hosted zone (resolvable only inside the VPC)

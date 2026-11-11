@@ -236,22 +236,24 @@ aws cloudformation delete-stack --stack-name arcadedb-production
 
 ## HA cluster (ha-cluster.yaml)
 
-> This template is validated statically (`cfn-lint`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run.
+> This template is validated statically (`cfn-lint`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run. The fixed network interfaces (one ENI per node, Elastic IPs for `AssociatePublicIp`) were added after that run and have not been deployed on AWS yet.
 
 ### What gets created
 
 | Resource | Count | Notes |
 |----------|-------|-------|
-| `AWS::EC2::Instance` | 3 | `Node0`..`Node2` run `node-0`..`node-2`; node N in `SubnetNId`; IMDSv2 required (launch template), encrypted gp3 root volume, no public IP by default |
+| `AWS::EC2::NetworkInterface` | 3 | `Node0Eni`..`Node2Eni`: primary ENI of node N in `SubnetNId`, with the node security group; created before the instance, so the node's private IP is fixed |
+| `AWS::EC2::EIP` + `AWS::EC2::EIPAssociation` | 0 or 3 | only with `AssociatePublicIp = true`, one per ENI |
+| `AWS::EC2::Instance` | 3 | `Node0`..`Node2` run `node-0`..`node-2`, each on its own ENI; IMDSv2 required (launch template), encrypted gp3 root volume, no public IP by default |
 | `AWS::EC2::LaunchTemplate` | 1 | only sets IMDSv2 (`HttpTokens: required`) |
 | `AWS::EC2::SecurityGroup` + ingress rules | 1 | shared by the nodes (see [Network access](#network-access)) |
 | `AWS::Route53::HostedZone` | 1 | private zone (default `arcadedb.internal`) attached to `VpcId` |
-| `AWS::Route53::RecordSet` | 3 | `node-N.<zone>` A record → node N private IP |
+| `AWS::Route53::RecordSet` | 3 | `node-N.<zone>` A record → private IP of node N's ENI |
 | internal NLB + target group + listener + NLB security group | 0 or 1 | only with `EnableNlb = true` (default) |
 
 Every resource that supports tags is tagged `Cluster = <NamePrefix>` and `Application = ArcadeDB`, and gets its own `Name` tag (e.g. `arcadedb-ha-node-0`); the root volumes get the instance tags. No IAM role or instance profile is created, so no `--capabilities` flag is needed.
 
-Creation order: the hosted zone first, then the instances, then the A records (they need the instance IPs). The user data only contains the static node DNS names, never instance IPs, so there is no circular dependency. Nodes boot in parallel; because the A records are created after the instances, each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). In the test run all three nodes were ready about 4 minutes after the instances started. The stack does not wait for ArcadeDB to start (the image has no `cfn-signal`): stack creation completes before the cluster is ready.
+Creation order: the hosted zone and the network interfaces first, then the A records (they point at the ENI IPs), then the instances (`DependsOn` the three records). All three peer names therefore resolve when a node boots: there is no wait for DNS, and a node does not depend on the other instances being up. Nodes boot in parallel. The stack does not wait for ArcadeDB to start (the image has no `cfn-signal`): stack creation completes before the cluster is ready.
 
 ### How the cluster is configured
 
@@ -266,6 +268,8 @@ Each node's user data writes the same systemd override as `single-instance.yaml`
 ```
 
 The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API `ArcadeDBHttpPort` (2480). The root password is the same on every node.
+
+Raft replication and elections never go through the NLB: every node connects to its peers directly on port 2434, using the `node-N.<PrivateZoneName>` names from the server list. The NLB only carries client HTTP traffic, so its health-check timing and connection handling cannot affect consensus.
 
 The NLB health check is `GET /api/v1/ready` (unauthenticated, HTTP 200-399). With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers forward writes to the leader, so any node can take a request (a write through the NLB succeeded in the test run).
 
@@ -285,7 +289,8 @@ The NLB health check is `GET /api/v1/ready` (unauthenticated, HTTP 200-399). Wit
     --query 'Subnets[*].[SubnetId,AvailabilityZone,VpcId,CidrBlock]' --output table
   ```
 - No other private hosted zone with the same name (`PrivateZoneName`) associated with the VPC, and no other load balancer or target group named `<NamePrefix>-nlb` / `<NamePrefix>-tg` in the region: use a distinct `NamePrefix` per stack.
-- IAM permissions for EC2, Elastic Load Balancing and Route 53.
+- IAM permissions for EC2 (including network interfaces, and Elastic IPs when `AssociatePublicIp = true`), Elastic Load Balancing and Route 53.
+- With `AssociatePublicIp = true`: an internet gateway on the VPC and three free Elastic IPs in the region quota (5 per region by default).
 
 ### Deploy
 
@@ -352,7 +357,7 @@ To reach the nodes without SSH, set `IamInstanceProfile` to an existing instance
 | PrivateZoneName    | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
 | EnableNlb          | No       | true              | Create the internal NLB on the HTTP port |
 | AllowedCidr        | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
-| AssociatePublicIp  | No       | false             | Give each node a public IP |
+| AssociatePublicIp  | No       | false             | Give each node an Elastic IP (needs an internet gateway) |
 | KeyName            | No       | _(empty)_         | EC2 key pair; opens port 22 to `AllowedCidr` when set |
 | IamInstanceProfile | No       | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this template creates no IAM resources) |
 
@@ -386,7 +391,9 @@ The root password follows the same rule as `single-instance.yaml` (only `A-Z a-z
 |-----------------|-------------|
 | NlbDnsName      | Internal NLB DNS name (only present when `EnableNlb = true`) |
 | InstanceIds     | Instance IDs of node-0..node-2, comma-separated |
-| PrivateIps      | Private IPs of node-0..node-2, comma-separated |
+| PrivateIps      | Private IPs of node-0..node-2 (fixed, from the ENIs), comma-separated |
+| NetworkInterfaceIds | Primary ENI IDs of node-0..node-2, comma-separated |
+| PublicIps       | Elastic IPs of node-0..node-2, comma-separated (only present when `AssociatePublicIp = true`) |
 | NodeDnsNames    | `node-N.<zone>` names of node-0..node-2, comma-separated |
 | StudioUrl       | Studio URL: NLB, or node-0 when the NLB is disabled |
 | ZoneName        | Private hosted zone name |
@@ -410,7 +417,9 @@ Not covered by that run: replacing a node, changing user data on a running clust
 
 ### Operations notes
 
-- **Replacing a node:** a replaced instance gets a new private IP; CloudFormation updates its A record (TTL 60 s). The other nodes may keep the old address cached and **may need a restart to reconnect — unverified**.
+- **Replacing a node:** if an instance fails, stop and start it (or rely on EC2 automatic recovery): it keeps its instance ID, ENI and root volume. The replacement attaches the same network interface, so it keeps the node's private IP and A record, and the other nodes need no DNS or configuration change. The new instance starts with an empty root volume (see the next point).
+- **Data on replacement:** the databases and the Raft log live on the root volume, which is deleted with the instance. A replaced node rejoins with no data and has to catch up from the leader, so the time a replacement takes grows with the database size. Until it has caught up, only two nodes hold the data. Replace one node at a time and wait until the new one answers `/api/v1/ready` before touching the next. How ArcadeDB brings an empty node up to date (snapshot or log replay) and how long that takes is **unverified** for these templates. A separate EBS data volume that survives replacement is not part of this example.
+- **Updates that replace an instance fail and roll back.** CloudFormation creates the new instance before it deletes the old one, and the ENI is still attached to the old one. That is safer than before: an update that replaces the instances (a new `AmiId`, for example) used to replace all three at the same time and lose every root volume. To move nodes to new instances, use the Terraform example (which replaces one node at a time), or deploy a new stack and move the data with a backup.
 - **Changing user data** (password, ArcadeDB settings) on an existing stack: CloudFormation stops and starts the instance to apply new user data, but the script only runs on first boot. Change the systemd override on the hosts instead, or replace the nodes one at a time.
 - The cluster keeps working with one node down (2 of 3 form a Raft majority); with two nodes down it stops accepting writes.
 
@@ -421,4 +430,4 @@ aws cloudformation delete-stack --stack-name arcadedb-ha
 aws cloudformation wait stack-delete-complete --stack-name arcadedb-ha
 ```
 
-This deletes the instances and their root volumes, so **all data is lost**. Take a backup first if you need it. The hosted zone is deleted together with its three records; if you added records to the zone by hand, delete them first or the zone deletion fails.
+This deletes the instances, their root volumes, the network interfaces and the Elastic IPs, so **all data is lost**. Take a backup first if you need it. The hosted zone is deleted together with its three records; if you added records to the zone by hand, delete them first or the zone deletion fails.

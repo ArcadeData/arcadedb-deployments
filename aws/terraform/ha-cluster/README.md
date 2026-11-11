@@ -2,16 +2,18 @@
 
 Deploys a 3-node ArcadeDB cluster (Raft) on AWS: one EC2 instance per Availability Zone, node discovery through a Route 53 private hosted zone, and an optional internal Network Load Balancer in front of the HTTP API.
 
-> This example is validated statically (`terraform fmt`, `validate`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run.
+> This example is validated statically (`terraform fmt`, `validate`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run. The fixed network interfaces (one ENI per node, Elastic IPs for `associate_public_ip`) were added after that run and have not been deployed on AWS yet.
 
 ## What gets created
 
 | Resource | Count | Notes |
 |----------|-------|-------|
-| `aws_instance` | 3 | `node-0`, `node-1`, `node-2`; node N in `subnet_ids[N]`; IMDSv2 required, encrypted gp3 root volume, no public IP by default |
+| `aws_network_interface` | 3 | primary ENI of node N in `subnet_ids[N]`, with the node security group; created before the instance, so the node's private IP is fixed and survives instance replacement |
+| `aws_eip` | 0 or 3 | only with `associate_public_ip = true`, one per ENI |
+| `aws_instance` | 3 | `node-0`, `node-1`, `node-2`, each on its own ENI; IMDSv2 required, encrypted gp3 root volume, no public IP by default |
 | `aws_security_group` | 1 | shared by the nodes (see [Network access](#network-access)) |
 | `aws_route53_zone` | 1 | private zone (default `arcadedb.internal`) attached to `vpc_id` |
-| `aws_route53_record` | 3 | `node-N.<zone>` A record → node N private IP |
+| `aws_route53_record` | 3 | `node-N.<zone>` A record → private IP of node N's ENI |
 | `aws_lb` (network, internal) + target group + listener + 3 attachments | 0 or 1 | only with `enable_nlb = true` (default) |
 
 Every resource that supports tags is tagged `Cluster = <name_prefix>` (provider `default_tags`) and gets its own `Name` tag (e.g. `arcadedb-ha-node-0`). No IAM role or instance profile is created.
@@ -28,13 +30,17 @@ Each node's user data writes the same systemd override as the single-instance ex
 -Darcadedb.server.readinessRequiresHA=true
 ```
 
-The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name. Nodes boot in parallel. The Route 53 records are created after the instances, so each node waits up to 10 minutes for all three peer DNS names to resolve before starting ArcadeDB (it starts anyway, with a warning, if they do not). In the test run all three nodes were ready about 4 minutes after the instances started.
+The server name must be `node-<0-based index>`: ArcadeDB Raft uses the numeric suffix as an index into the server list. Raft uses port 2434, the HTTP API port 2480 (`arcadedb_http_port`). The user data is identical on all nodes except for the server name.
+
+Each node runs on a network interface created before the instance, so its private IP is known up front. Terraform creates the ENIs, then the A records, then the instances, so all three peer names already resolve when a node boots: there is no wait for DNS, and a node does not depend on the other instances being up. Nodes boot in parallel.
+
+Raft replication and elections never go through the NLB: every node connects to its peers directly on port 2434, using the `node-N.<private_zone_name>` names from the server list. The NLB only carries client HTTP traffic, so its health-check timing and connection handling cannot affect consensus.
 
 The NLB health check is `GET /api/v1/ready` (unauthenticated). With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers forward writes to the leader, so any node can take a request (a write through the NLB succeeded in the test run).
 
 ## Prerequisites
 
-- Terraform >= 1.2, AWS provider >= 5.0.
+- Terraform >= 1.2, AWS provider >= 6.10 (`primary_network_interface`).
 - A VPC with **DNS support and DNS hostnames enabled** (`enableDnsSupport` and `enableDnsHostnames`). Without them the private hosted zone does not resolve and the nodes cannot find each other.
 - **Three subnets in that VPC, each in a different Availability Zone.** The plan fails if two subnets share an AZ or a subnet is outside `vpc_id`.
 - No other private hosted zone with the same name (`private_zone_name`) associated with the VPC, and no other load balancer or target group named `<name_prefix>-nlb` / `<name_prefix>-tg` in the region: for a second cluster in the same VPC use a distinct `private_zone_name` and a distinct `name_prefix`.
@@ -50,7 +56,8 @@ The NLB health check is `GET /api/v1/ready` (unauthenticated). With `readinessRe
   - or leave both empty to use the most recent AMI in your own account whose name contains `arcadedb`.
 
   The lookup picks the AMI matching the architecture of `instance_type` (arm64 for `t4g`, `m7g`, `r7g`, `c7g`; x86_64 otherwise). An explicit `ami_id` of the wrong architecture fails at plan time.
-- IAM permissions for EC2, Elastic Load Balancing and Route 53. Creating the security group needs `ec2:RevokeSecurityGroupEgress` (the provider removes the default egress rule).
+- IAM permissions for EC2 (including network interfaces, and Elastic IPs when `associate_public_ip = true`), Elastic Load Balancing and Route 53.
+- With `associate_public_ip = true`: an internet gateway on the VPC and three free Elastic IPs in the region quota (5 per region by default). Creating the security group needs `ec2:RevokeSecurityGroupEgress` (the provider removes the default egress rule).
 
 ## Quick start
 
@@ -101,7 +108,7 @@ Because client IPs are preserved, a node that calls the NLB can be routed back t
 | private_zone_name    | No       | arcadedb.internal | Route 53 private hosted zone for node discovery |
 | enable_nlb           | No       | true              | Create the internal NLB on the HTTP port |
 | allowed_cidr         | No       | 10.0.0.0/16       | CIDR allowed to reach the HTTP API (and SSH) |
-| associate_public_ip  | No       | false             | Give each node a public IP |
+| associate_public_ip  | No       | false             | Give each node an Elastic IP (needs an internet gateway) |
 | key_name             | No       | _(empty)_         | EC2 key pair; opens port 22 to `allowed_cidr` when set |
 | iam_instance_profile | No       | _(empty)_         | Name of an existing IAM instance profile to attach to the nodes (this example creates no IAM resources) |
 
@@ -140,7 +147,9 @@ To reach the nodes without SSH, set `iam_instance_profile` to an existing instan
 |-------------------|-------------|
 | nlb_dns_name      | Internal NLB DNS name (`null` when `enable_nlb = false`) |
 | instance_ids      | Instance IDs of node-0..node-2 |
-| private_ips       | Private IPs of node-0..node-2 |
+| private_ips       | Private IPs of node-0..node-2 (fixed, from the ENIs) |
+| network_interface_ids | Primary ENI IDs of node-0..node-2 |
+| public_ips        | Elastic IPs of node-0..node-2 (empty without `associate_public_ip`) |
 | node_dns_names    | `node-N.<zone>` names of node-0..node-2 |
 | studio_url        | Studio URL: NLB, or node-0 when the NLB is disabled |
 | zone_name         | Private hosted zone name |
@@ -164,7 +173,8 @@ Not covered by that run: replacing a node, changing user data on a running clust
 
 ## Operations notes
 
-- **Replacing a node:** a replaced instance gets a new private IP; Terraform updates its A record (TTL 60 s). The other nodes may keep the old address cached and **may need a restart to reconnect — unverified**.
+- **Replacing a node:** `terraform apply -replace='aws_instance.node[0]'`. Terraform destroys the old instance before it creates the new one, which frees the ENI for it. The replacement attaches the same network interface, so it keeps the node's private IP and A record, and the other nodes need no DNS or configuration change. The new instance starts with an empty root volume (see the next point).
+- **Data on replacement:** the databases and the Raft log live on the root volume, which is deleted with the instance. A replaced node rejoins with no data and has to catch up from the leader, so the time a replacement takes grows with the database size. Until it has caught up, only two nodes hold the data. Replace one node at a time and wait until the new one answers `/api/v1/ready` before touching the next. How ArcadeDB brings an empty node up to date (snapshot or log replay) and how long that takes is **unverified** for these templates. A separate EBS data volume that survives replacement is not part of this example.
 - **Changing user data** (password, settings) on an existing cluster: Terraform updates `user_data` in place, which stops and starts the instance, but the script only runs on first boot. Recreate the nodes (`terraform apply -replace='aws_instance.node[0]'`, one at a time) or change the systemd override on the hosts.
 - The cluster keeps working with one node down (2 of 3 form a Raft majority); with two nodes down it stops accepting writes.
 
@@ -174,4 +184,4 @@ Not covered by that run: replacing a node, changing user data on a running clust
 terraform destroy
 ```
 
-This deletes the instances and their root volumes, so **all data is lost**. Take a backup first if you need it. The hosted zone is deleted together with its three records; if you added records to the zone by hand, delete them first or the zone deletion fails.
+This deletes the instances, their root volumes, the network interfaces and the Elastic IPs, so **all data is lost**. Take a backup first if you need it. The hosted zone is deleted together with its three records; if you added records to the zone by hand, delete them first or the zone deletion fails.
