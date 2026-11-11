@@ -236,7 +236,7 @@ aws cloudformation delete-stack --stack-name arcadedb-production
 
 ## HA cluster (ha-cluster.yaml)
 
-> This template is validated statically (`cfn-lint`) in this repository, which has no AWS account. It was also deployed once on AWS on 2026-11-08 (default VPC of `us-east-1`, `t3.large` nodes) and passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by that run. The fixed network interfaces (one ENI per node, Elastic IPs for `AssociatePublicIp`) were added after that run and have not been deployed on AWS yet.
+> This template is validated statically (`cfn-lint`) in this repository, which has no AWS account. It was deployed on AWS on 2026-11-08 and again on 2026-11-11, after the fixed network interfaces (one ENI per node, Elastic IPs for `AssociatePublicIp`) were added (default VPC of `us-east-1`, `t3.large` nodes). Both runs passed the checks listed under "Verified on AWS" below. Items marked "unverified" are not covered by those runs.
 
 ### What gets created
 
@@ -406,14 +406,14 @@ This runs three instances, three EBS volumes, an NLB and a hosted zone around th
 
 ### Verified on AWS
 
-One deployment on 2026-11-08 (CloudFormation, default VPC of `us-east-1`, `t3.large` nodes, public IPs on so the test could reach the nodes through SSM) passed these checks, then was destroyed without leftovers:
+Two deployments (CloudFormation, default VPC of `us-east-1`, `t3.large` nodes, public IPs on so the test could reach the nodes through SSM) passed these checks, then were destroyed without leftovers: one on 2026-11-08, and one on 2026-11-11 with the fixed network interfaces and Elastic IPs:
 
 - the three nodes formed one cluster with one leader;
 - a record written through node-0 was readable on all three nodes;
 - a write through the NLB succeeded and was readable afterwards;
 - after stopping the leader, a surviving node became leader and writes still succeeded.
 
-Not covered by that run: replacing a node, changing user data on a running cluster, restoring from a backup, and sustained load. After the leader was stopped, the surviving nodes still reported three members, because a stopped node stays in the configured Raft peer set.
+Not covered by those runs: replacing a node, changing user data on a running cluster, restoring from a backup, and sustained load. After the leader was stopped, the surviving nodes still reported three members, because a stopped node stays in the configured Raft peer set.
 
 ### Operations notes
 
