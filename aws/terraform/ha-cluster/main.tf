@@ -2,9 +2,10 @@ terraform {
   required_version = ">= 1.2"
 
   required_providers {
+    # primary_network_interface on aws_instance needs 6.10 or later.
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.10"
     }
   }
 }
@@ -185,6 +186,41 @@ resource "aws_security_group" "node" {
 }
 
 # -----------------------------------------------------------------------------
+# Network interfaces (one per node, fixed private IP)
+# Each node's primary ENI is created before its instance, so its private IP is
+# known up front: the A records exist before any node boots, and a replaced
+# instance gets the same ENI, IP and DNS answer back.
+# -----------------------------------------------------------------------------
+
+resource "aws_network_interface" "node" {
+  count = local.node_count
+
+  subnet_id       = var.subnet_ids[count.index]
+  security_groups = [aws_security_group.node.id]
+  description     = "ArcadeDB HA ${var.name_prefix} ${local.node_names[count.index]}"
+
+  tags = {
+    Name = "${var.name_prefix}-${local.node_names[count.index]}-eni"
+    Node = local.node_names[count.index]
+  }
+}
+
+# An instance launched with an existing ENI cannot get an auto-assigned public
+# IP, so associate_public_ip gives each ENI an Elastic IP instead. The VPC
+# needs an internet gateway for that.
+resource "aws_eip" "node" {
+  count = var.associate_public_ip ? local.node_count : 0
+
+  domain            = "vpc"
+  network_interface = aws_network_interface.node[count.index].id
+
+  tags = {
+    Name = "${var.name_prefix}-${local.node_names[count.index]}-eip"
+    Node = local.node_names[count.index]
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Route 53 private hosted zone (node discovery)
 # Requires enableDnsSupport and enableDnsHostnames on the VPC.
 # -----------------------------------------------------------------------------
@@ -208,7 +244,7 @@ resource "aws_route53_record" "node" {
   name    = local.node_dns_names[count.index]
   type    = "A"
   ttl     = 60
-  records = [aws_instance.node[count.index].private_ip]
+  records = [aws_network_interface.node[count.index].private_ip]
 }
 
 # -----------------------------------------------------------------------------
@@ -218,13 +254,16 @@ resource "aws_route53_record" "node" {
 resource "aws_instance" "node" {
   count = local.node_count
 
-  ami                         = local.ami_id
-  instance_type               = var.instance_type
-  key_name                    = var.key_name != "" ? var.key_name : null
-  iam_instance_profile        = var.iam_instance_profile != "" ? var.iam_instance_profile : null
-  subnet_id                   = var.subnet_ids[count.index]
-  vpc_security_group_ids      = [aws_security_group.node.id]
-  associate_public_ip_address = var.associate_public_ip
+  ami                  = local.ami_id
+  instance_type        = var.instance_type
+  key_name             = var.key_name != "" ? var.key_name : null
+  iam_instance_profile = var.iam_instance_profile != "" ? var.iam_instance_profile : null
+
+  # Subnet and security group come from the ENI. The ENI is not deleted when
+  # the instance is terminated, so a replacement instance reuses it.
+  primary_network_interface {
+    network_interface_id = aws_network_interface.node[count.index].id
+  }
 
   # Require IMDSv2 (session tokens)
   metadata_options {
@@ -249,7 +288,6 @@ resource "aws_instance" "node" {
   user_data = templatefile("${path.module}/userdata.sh.tftpl", {
     node_name              = local.node_names[count.index]
     ha_server_list         = local.ha_server_list
-    peer_dns_names         = join(" ", local.node_dns_names)
     arcadedb_root_password = var.arcadedb_root_password
     arcadedb_server_mode   = var.arcadedb_server_mode
     arcadedb_http_port     = var.arcadedb_http_port
@@ -263,6 +301,9 @@ resource "aws_instance" "node" {
     Node    = local.node_names[count.index]
     Version = var.arcadedb_version
   }
+
+  # Boot only once all three peer names resolve, so ArcadeDB never sees NXDOMAIN.
+  depends_on = [aws_route53_record.node]
 
   lifecycle {
     precondition {

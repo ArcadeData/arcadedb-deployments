@@ -10,7 +10,17 @@ output "instance_ids" {
 
 output "private_ips" {
   description = "Private IP addresses of node-0, node-1, node-2 (in that order)"
-  value       = aws_instance.node[*].private_ip
+  value       = aws_network_interface.node[*].private_ip
+}
+
+output "network_interface_ids" {
+  description = "Primary ENI IDs of node-0, node-1, node-2 (in that order); they outlive instance replacement"
+  value       = aws_network_interface.node[*].id
+}
+
+output "public_ips" {
+  description = "Elastic IPs of node-0, node-1, node-2 (empty when associate_public_ip = false)"
+  value       = aws_eip.node[*].public_ip
 }
 
 output "node_dns_names" {

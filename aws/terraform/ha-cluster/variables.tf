@@ -78,7 +78,7 @@ variable "allowed_cidr" {
 }
 
 variable "associate_public_ip" {
-  description = "Give each node a public IP address. Off by default: the nodes are meant to be reached inside the VPC."
+  description = "Give each node an Elastic IP (the VPC needs an internet gateway). Off by default: the nodes are meant to be reached inside the VPC."
   type        = bool
   default     = false
 }

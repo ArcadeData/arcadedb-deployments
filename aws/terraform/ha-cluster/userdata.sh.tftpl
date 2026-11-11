@@ -16,8 +16,9 @@ SETTINGS="$SETTINGS -Darcadedb.server.mode=${arcadedb_server_mode}"
 SETTINGS="$SETTINGS -Darcadedb.server.httpIncomingPort=${arcadedb_http_port}"
 
 # High availability (Raft). The server name must be node-<0-based index>.
-# Peers are found through the Route 53 private zone; the script waits for
-# their DNS names before starting ArcadeDB (see below).
+# Peers are found through the Route 53 private zone. Each node has a fixed
+# private IP (its own ENI) and the A records are created before the instances,
+# so the peer names already resolve when this script runs.
 SETTINGS="$SETTINGS -Darcadedb.server.name=${node_name}"
 SETTINGS="$SETTINGS -Darcadedb.ha.enabled=true"
 SETTINGS="$SETTINGS -Darcadedb.ha.serverList=${ha_server_list}"
@@ -46,28 +47,5 @@ Environment="JAVA_OPTS=$JAVA_OPTS"
 CONF
 
 systemctl daemon-reload
-
-# Wait (up to 10 minutes) until every peer name resolves before starting.
-# The Route 53 records are created only after the instances exist, and an
-# early NXDOMAIN can be negatively cached, so poll and flush the cache.
-PEERS="${peer_dns_names}"
-DEADLINE=$(( $(date +%s) + 600 ))
-while true; do
-  MISSING=""
-  for PEER in $PEERS; do
-    if ! getent hosts "$PEER" > /dev/null; then
-      MISSING="$MISSING $PEER"
-    fi
-  done
-  if [ -z "$MISSING" ]; then
-    break
-  fi
-  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-    echo "WARNING: peer DNS names not resolvable after 600 s:$MISSING; starting ArcadeDB anyway" >&2
-    break
-  fi
-  resolvectl flush-caches 2>/dev/null || true
-  sleep 5
-done
 
 systemctl start arcadedb
