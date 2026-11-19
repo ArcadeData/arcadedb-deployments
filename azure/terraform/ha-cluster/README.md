@@ -37,7 +37,7 @@ Each node's NIC has a static private IP, so its address is known up front. Terra
 
 Raft replication and elections never go through the load balancer: every node connects to its peers directly on port 2434, using the `node-N.<private_zone_name>` names from the server list. The load balancer only carries client HTTP traffic.
 
-The load balancer probe is `GET /api/v1/ready` (unauthenticated) on the HTTP port, every 5 seconds, 2 probes. With `readinessRequiresHA=true` a node only reports ready once it has joined the cluster, so only cluster members receive traffic. Followers forward writes to the leader, so any node can take a request.
+The load balancer probe is a TCP check on the HTTP port, every 5 seconds, 2 probes: a node gets traffic once ArcadeDB listens. An HTTP probe on `/api/v1/ready` is not possible because that endpoint answers 204 and Azure Load Balancer counts only 200 as healthy. Followers forward writes to the leader, so any node can take a request; a node that is still joining the cluster answers with an error until it has joined.
 
 ## Prerequisites
 
