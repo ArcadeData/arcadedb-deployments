@@ -205,7 +205,7 @@ run "no_password" {
 run "bad_password" {
   command = plan
   variables {
-    arcadedb_root_password = "a'b"
+    arcadedb_root_password = "abcdefg'h"
   }
   expect_failures = [var.arcadedb_root_password]
 }
@@ -283,5 +283,51 @@ run "tags" {
       [azurerm_network_security_group.this.tags, azurerm_application_security_group.nodes.tags, azurerm_private_dns_zone.this.tags, azurerm_private_dns_zone_virtual_network_link.this.tags, azurerm_lb.this[0].tags],
     ) : t["GitHubRun"] == "1" && t["Cluster"] == "arcadedb-ha" && t["Application"] == "ArcadeDB"])
     error_message = "Every taggable resource merges user tags with Cluster and Application"
+  }
+}
+
+run "short_password" {
+  command = plan
+  variables {
+    arcadedb_root_password = "Abc.123"
+  }
+  expect_failures = [var.arcadedb_root_password]
+}
+
+run "min_length_password" {
+  command = plan
+  variables {
+    arcadedb_root_password = "Abc.1234"
+  }
+  assert {
+    condition     = alltrue([for vm in azurerm_linux_virtual_machine.node : strcontains(base64decode(vm.custom_data), "path: /etc/arcadedb/root-password")])
+    error_message = "An 8-character password must be accepted"
+  }
+}
+
+run "max_ram_with_unit" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "2g"
+  }
+  expect_failures = [var.arcadedb_max_ram]
+}
+
+run "max_ram_zero" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "0"
+  }
+  expect_failures = [var.arcadedb_max_ram]
+}
+
+run "max_ram_custom" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "4096"
+  }
+  assert {
+    condition     = alltrue([for vm in azurerm_linux_virtual_machine.node : strcontains(base64decode(vm.custom_data), "-Xmx4096m")])
+    error_message = "arcadedb_max_ram must become -Xmx<MB>m on every node"
   }
 }

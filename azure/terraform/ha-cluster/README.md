@@ -47,6 +47,7 @@ The load balancer probe is `GET /api/v1/ready` (unauthenticated) on the HTTP por
 - vCPU quota for three VMs of `vm_size` in the region (6 vCPU for the default `Standard_D2s_v5`, DSv5 family).
 - No other private DNS zone with the same name (`private_zone_name`) linked to the VNet: a VNet cannot link two zones with the same name. For a second cluster in the same VNet use a distinct `private_zone_name` and a distinct `name_prefix`.
 - An SSH key pair.
+- Outbound internet access, if the nodes need it (OS security updates, `defaultDatabases` imports from URLs, plugins). The nodes have no public IP and sit behind an internal Standard load balancer, which gives no outbound path, and new VNets default to private subnets, so attach a NAT gateway (or route through a firewall) on the subnet.
 - For the Marketplace image, accept the terms once per subscription, for the architecture you deploy:
 
   ```bash
@@ -135,14 +136,14 @@ Do not set `allowed_cidr` to `0.0.0.0/0`. The nodes get no public IP.
 
 | Variable               | Required | Default    | Description |
 |------------------------|----------|------------|-------------|
-| arcadedb_root_password | Yes      | -          | Root password, the same on every node |
+| arcadedb_root_password | Yes      | -          | Root password (8+ characters), the same on every node |
 | arcadedb_server_mode   | No       | production | Server mode (`development`, `test`, `production`) |
 | arcadedb_http_port     | No       | 2480       | HTTP port for API and Studio (also used in the server list and by the load balancer) |
 | arcadedb_plugins       | No       | _(empty)_  | Comma-separated plugin list |
-| arcadedb_max_ram       | No       | 2048       | Max heap size in MB (`-Xmx`) |
+| arcadedb_max_ram       | No       | 2048       | Max heap size in MB, a whole number without unit (`-Xmx`) |
 | arcadedb_java_opts     | No       | _(empty)_  | Additional `-Darcadedb.*` JVM flags (appended as-is on every node, avoid double quotes) |
 
-The root password may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`. It ends up in the VMs' custom data and in the Terraform state; protect the state and change the password after the first login.
+The root password must be at least 8 characters (ArcadeDB refuses to start with a shorter one) and may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`. It ends up in the VMs' custom data and in the Terraform state; protect the state and change the password after the first login.
 
 ## Outputs
 

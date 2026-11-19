@@ -137,13 +137,13 @@ variable "enable_lb" {
 # -----------------------------------------------------------------------------
 
 variable "arcadedb_root_password" {
-  description = "Root password for ArcadeDB, the same on every node, from A-Z a-z 0-9 @!#^+=._&-. It is stored in the VMs' custom data, so change it after the first login."
+  description = "Root password for ArcadeDB, the same on every node: at least 8 characters from A-Z a-z 0-9 @!#^+=._&-. It is stored in the VMs' custom data, so change it after the first login."
   type        = string
   sensitive   = true
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9@!#^+=._&-]+$", var.arcadedb_root_password))
-    error_message = "Root password is required and may only contain A-Z a-z 0-9 @ ! # ^ + = . _ & -."
+    condition     = length(var.arcadedb_root_password) >= 8 && can(regex("^[A-Za-z0-9@!#^+=._&-]+$", var.arcadedb_root_password))
+    error_message = "Root password is required: at least 8 characters from A-Z a-z 0-9 @ ! # ^ + = . _ & - (ArcadeDB rejects shorter root passwords)."
   }
 }
 
@@ -171,9 +171,14 @@ variable "arcadedb_plugins" {
 }
 
 variable "arcadedb_max_ram" {
-  description = "Max heap size in MB (sets JVM -Xmx)"
+  description = "Max heap size in MB (sets JVM -Xmx), a whole number without unit, e.g. 2048"
   type        = string
   default     = "2048"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*$", var.arcadedb_max_ram))
+    error_message = "arcadedb_max_ram must be a positive whole number of megabytes without a unit, e.g. 2048 (it becomes -Xmx<value>m)."
+  }
 }
 
 variable "arcadedb_java_opts" {

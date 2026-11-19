@@ -8,7 +8,7 @@ Deploys a single ArcadeDB VM on Azure from the ArcadeDB Azure Marketplace image.
 - a network interface in your subnet with a network security group: the ArcadeDB HTTP port from `allowed_cidr`, and SSH from `allowed_cidr` when `enable_ssh = true`;
 - optionally (`public_ip = true`) a Standard static public IP.
 
-The resource group and the subnet must already exist. Everything is tagged with `tags`, `Cluster = <name_prefix>` and `Application = ArcadeDB`.
+The resource group and the subnet must already exist. Every resource that takes tags is tagged with `tags`, `Cluster = <name_prefix>` and `Application = ArcadeDB` (the OS disk is not tagged).
 
 ## How it is configured
 
@@ -18,15 +18,20 @@ The VM gets a cloud-init file that:
 - writes a systemd override with `ARCADEDB_SETTINGS` (root password file, database and backup directories, server mode, HTTP port, plugins, `arcadedb_java_opts`) and `JAVA_OPTS` (`-Xms512m -Xmx<arcadedb_max_ram>m -XX:+UseG1GC`);
 - restarts ArcadeDB, so the settings apply whatever order the image's units started in.
 
-With no `arcadedb_root_password` the image generates a unique password on first boot. Read it over SSH (`enable_ssh = true`) from `~/arcadedb-root-password.txt` of `admin_username`, or with `sudo cat /etc/arcadedb/root-password`.
+With no `arcadedb_root_password` the image generates a unique password on first boot. Read it over SSH (`enable_ssh = true`) from `~/arcadedb-root-password.txt` of `admin_username`, or with `sudo cat /etc/arcadedb/root-password`. The VM has no public IP unless `public_ip = true`, so SSH needs a machine inside the VNet (or a VPN, peering or Bastion). Without SSH, read it through the Azure control plane:
 
-The root password may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`.
+```bash
+az vm run-command invoke -g <rg> -n <vm> --command-id RunShellScript --scripts 'cat /etc/arcadedb/root-password'
+```
+
+A root password you set must be at least 8 characters (ArcadeDB refuses to start with a shorter one) and may only contain `A-Z a-z 0-9 @ ! # ^ + = . _ & -`.
 
 ## Prerequisites
 
 - Terraform >= 1.5 and the Azure CLI, logged in (`az login`) with a subscription selected (or `ARM_SUBSCRIPTION_ID` set)
 - An existing resource group and subnet
 - An SSH key pair
+- Outbound internet access, if the VM needs it (OS security updates, `defaultDatabases` imports from URLs such as the one in `terraform.tfvars.example`, plugins). Without `public_ip = true` the VM has no public outbound path by default, and new VNets default to private subnets, so attach a NAT gateway (or route through a firewall) on the subnet.
 - For the Marketplace image, accept the terms once per subscription, for the architecture you deploy:
 
   ```bash
@@ -48,6 +53,8 @@ terraform apply
 ```
 
 Then open the `studio_url` output from a machine inside `allowed_cidr`, and log in as `root`.
+
+Azure's default NSG rule `AllowVnetInBound` allows all traffic from inside the VNet (and from peered or VPN-connected networks), so `allowed_cidr` does not restrict sources inside the VNet; add a higher-priority deny rule or a subnet NSG if you need that.
 
 The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D4pds_v5`, `Standard_E2ps_v5`, ...) get the `arcadedb-ubuntu-arm64` image, all others `arcadedb-ubuntu`. With `image_id`, the plan fails if the gallery image definition's architecture does not match `vm_size`.
 
@@ -82,11 +89,11 @@ The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D
 
 | Variable               | Required | Default    | Description |
 |------------------------|----------|------------|-------------|
-| arcadedb_root_password | No       | _(empty)_  | Root password; empty keeps the image's per-VM password |
+| arcadedb_root_password | No       | _(empty)_  | Root password (8+ characters); empty keeps the image's per-VM password |
 | arcadedb_server_mode   | No       | production | Server mode (`development`, `test`, `production`) |
 | arcadedb_http_port     | No       | 2480       | HTTP port for API and Studio |
 | arcadedb_plugins       | No       | _(empty)_  | Comma-separated plugin list |
-| arcadedb_max_ram       | No       | 2048       | Max heap size in MB (`-Xmx`) |
+| arcadedb_max_ram       | No       | 2048       | Max heap size in MB, a whole number without unit (`-Xmx`) |
 | arcadedb_java_opts     | No       | _(empty)_  | Additional `-Darcadedb.*` JVM flags (appended as-is, avoid double quotes) |
 
 ## Outputs

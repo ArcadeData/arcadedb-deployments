@@ -280,7 +280,7 @@ run "password_set" {
 run "bad_password_quote" {
   command = plan
   variables {
-    arcadedb_root_password = "a'b"
+    arcadedb_root_password = "abcdefg'h"
   }
   expect_failures = [var.arcadedb_root_password]
 }
@@ -288,7 +288,7 @@ run "bad_password_quote" {
 run "bad_password_dollar" {
   command = plan
   variables {
-    arcadedb_root_password = "a$b"
+    arcadedb_root_password = "abcdefg$h"
   }
   expect_failures = [var.arcadedb_root_password]
 }
@@ -296,7 +296,7 @@ run "bad_password_dollar" {
 run "bad_password_space" {
   command = plan
   variables {
-    arcadedb_root_password = "a b"
+    arcadedb_root_password = "abcdefg h"
   }
   expect_failures = [var.arcadedb_root_password]
 }
@@ -304,7 +304,7 @@ run "bad_password_space" {
 run "bad_password_percent" {
   command = plan
   variables {
-    arcadedb_root_password = "a%b"
+    arcadedb_root_password = "abcdefg%h"
   }
   expect_failures = [var.arcadedb_root_password]
 }
@@ -351,5 +351,51 @@ run "tags" {
   assert {
     condition     = azurerm_linux_virtual_machine.this.tags["GitHubRun"] == "1" && azurerm_linux_virtual_machine.this.tags["Cluster"] == "arcadedb" && azurerm_linux_virtual_machine.this.tags["Application"] == "ArcadeDB"
     error_message = "VM tags must merge user tags with Cluster and Application"
+  }
+}
+
+run "short_password" {
+  command = plan
+  variables {
+    arcadedb_root_password = "Abc.123"
+  }
+  expect_failures = [var.arcadedb_root_password]
+}
+
+run "min_length_password" {
+  command = plan
+  variables {
+    arcadedb_root_password = "Abc.1234"
+  }
+  assert {
+    condition     = strcontains(base64decode(azurerm_linux_virtual_machine.this.custom_data), "path: /etc/arcadedb/root-password")
+    error_message = "An 8-character password must be accepted"
+  }
+}
+
+run "max_ram_with_unit" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "2g"
+  }
+  expect_failures = [var.arcadedb_max_ram]
+}
+
+run "max_ram_zero" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "0"
+  }
+  expect_failures = [var.arcadedb_max_ram]
+}
+
+run "max_ram_custom" {
+  command = plan
+  variables {
+    arcadedb_max_ram = "4096"
+  }
+  assert {
+    condition     = strcontains(base64decode(azurerm_linux_virtual_machine.this.custom_data), "-Xmx4096m")
+    error_message = "arcadedb_max_ram must become -Xmx<MB>m"
   }
 }

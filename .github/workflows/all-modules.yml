@@ -18,6 +18,10 @@ jobs:
     name: AWS
     uses: ./.github/workflows/aws.yml
 
+  azure:
+    name: Azure
+    uses: ./.github/workflows/azure.yml
+
   azure-seaweedfs:
     name: Azure SeaweedFS
     uses: ./.github/workflows/azure-seaweedfs.yml
