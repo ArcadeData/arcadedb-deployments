@@ -4,7 +4,7 @@ Deploys a single ArcadeDB VM on Azure from the ArcadeDB Azure Marketplace image.
 
 ## What gets created
 
-- a Linux VM (Trusted launch, SSH key login only, encrypted OS disk, boot diagnostics on managed storage) from the Marketplace image, or from your Compute Gallery image when `image_id` is set;
+- a Linux VM (Trusted launch on x64, SSH key login only, encrypted OS disk, boot diagnostics on managed storage) from the Marketplace image, or from your Compute Gallery image when `image_id` is set;
 - a network interface in your subnet with a network security group: the ArcadeDB HTTP port from `allowed_cidr`, and SSH from `allowed_cidr` when `enable_ssh = true`;
 - optionally (`public_ip = true`) a Standard static public IP.
 
@@ -56,7 +56,7 @@ Then open the `studio_url` output from a machine inside `allowed_cidr`, and log 
 
 Azure's default NSG rule `AllowVnetInBound` allows all traffic from inside the VNet (and from peered or VPN-connected networks), so `allowed_cidr` does not restrict sources inside the VNet; add a higher-priority deny rule or a subnet NSG if you need that.
 
-The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D4pds_v5`, `Standard_E2ps_v5`, ...) get the `arcadedb-ubuntu-arm64` image, all others `arcadedb-ubuntu`. With `image_id`, the plan fails if the gallery image definition's architecture does not match `vm_size`.
+The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D4pds_v5`, `Standard_E2ps_v5`, ...) get the `arcadedb-ubuntu-arm64` image, all others `arcadedb-ubuntu`. With `image_id`, the plan fails if the gallery image definition's architecture does not match `vm_size`. Trusted launch (secure boot + vTPM) is on for x64 and off for Arm64, because Azure does not support it on the Ampere Arm64 sizes (Dpsv5, Epsv5); override with `trusted_launch`.
 
 ## Variables
 
@@ -68,6 +68,7 @@ The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D
 | location             | No       | _(RG location)_   | Azure region |
 | name_prefix          | No       | arcadedb          | Prefix for resource names and the `Cluster` tag |
 | vm_size              | No       | Standard_D2s_v5   | VM size (decides the architecture) |
+| trusted_launch       | No       | null (x64 on, Arm64 off) | Secure boot + vTPM |
 | admin_username       | No       | azureuser         | Admin user (SSH key only) |
 | admin_ssh_public_key | Yes      | -                 | SSH public key |
 | os_disk_size_gb      | No       | 30                | OS disk size (GB) |

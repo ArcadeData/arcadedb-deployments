@@ -9,6 +9,8 @@ locals {
   # Arm64 sizes carry a "p" among the feature letters (D2ps_v5, D4pds_v5, E2ps_v5, D2pls_v5, ...)
   is_arm          = can(regex("^Standard_[A-Z]+[0-9]+[a-z]*p[a-z]*_v[0-9]+$", var.vm_size))
   marketplace_sku = local.is_arm ? "arcadedb-ubuntu-arm64" : "arcadedb-ubuntu"
+  # Azure rejects Trusted launch on the Ampere Arm64 sizes (Dpsv5, Epsv5), so Arm64 defaults to off
+  trusted_launch  = var.trusted_launch != null ? var.trusted_launch : !local.is_arm
   use_marketplace = var.image_id == ""
   location        = coalesce(var.location, data.azurerm_resource_group.this.location)
 
@@ -235,9 +237,9 @@ resource "azurerm_linux_virtual_machine" "node" {
   custom_data           = base64encode(local.custom_data[count.index])
   tags                  = local.common_tags
 
-  # The image is Generation 2 and Trusted launch
-  secure_boot_enabled = true
-  vtpm_enabled        = true
+  # The image is Generation 2 and supports Trusted launch; Standard security when it is off
+  secure_boot_enabled = local.trusted_launch
+  vtpm_enabled        = local.trusted_launch
 
   disable_password_authentication = true
 

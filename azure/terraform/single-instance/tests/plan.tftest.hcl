@@ -59,6 +59,33 @@ run "arm_d2ps" {
     condition     = local.is_arm && local.marketplace_sku == "arcadedb-ubuntu-arm64" && azurerm_linux_virtual_machine.this.plan[0].name == "arcadedb-ubuntu-arm64"
     error_message = "Standard_D2ps_v5 is Arm64"
   }
+  assert {
+    condition     = !azurerm_linux_virtual_machine.this.secure_boot_enabled && !azurerm_linux_virtual_machine.this.vtpm_enabled
+    error_message = "Arm64 sizes default to Trusted launch off (Dpsv5 does not support it)"
+  }
+}
+
+run "arm_trusted_launch_forced_on" {
+  command = plan
+  variables {
+    vm_size        = "Standard_D2ps_v6"
+    trusted_launch = true
+  }
+  assert {
+    condition     = azurerm_linux_virtual_machine.this.secure_boot_enabled && azurerm_linux_virtual_machine.this.vtpm_enabled
+    error_message = "trusted_launch = true turns it on for Arm64"
+  }
+}
+
+run "x64_trusted_launch_off" {
+  command = plan
+  variables {
+    trusted_launch = false
+  }
+  assert {
+    condition     = !azurerm_linux_virtual_machine.this.secure_boot_enabled && !azurerm_linux_virtual_machine.this.vtpm_enabled
+    error_message = "trusted_launch = false turns it off"
+  }
 }
 
 run "arm_d4pds" {
