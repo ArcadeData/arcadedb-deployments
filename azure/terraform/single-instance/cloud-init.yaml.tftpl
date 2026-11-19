@@ -1,0 +1,23 @@
+#cloud-config
+write_files:
+%{ if arcadedb_root_password != "" ~}
+  # Written before arcadedb-firstboot runs, which then keeps it instead of generating one.
+  - path: /etc/arcadedb/root-password
+    owner: arcadedb:arcadedb
+    permissions: "0600"
+    content: ${jsonencode(arcadedb_root_password)}
+%{ endif ~}
+  - path: /etc/systemd/system/arcadedb.service.d/override.conf
+    permissions: "0644"
+    content: |
+      [Service]
+      Environment="ARCADEDB_SETTINGS=${arcadedb_settings}"
+      Environment="JAVA_OPTS=-Xms512m -Xmx${arcadedb_max_ram}m -XX:+UseG1GC"
+runcmd:
+  # Hold whatever order the image's units started in: restart with the settings above.
+  - systemctl stop arcadedb || true
+%{ if arcadedb_root_password != "" ~}
+  - rm -f /opt/arcadedb/config/server-users.jsonl
+%{ endif ~}
+  - systemctl daemon-reload
+  - systemctl start arcadedb

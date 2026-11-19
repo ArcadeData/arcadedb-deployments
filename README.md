@@ -2,6 +2,7 @@
 
 [![All Modules CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/all-modules.yml)
 [![AWS CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/aws.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/aws.yml)
+[![Azure CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure.yml)
 [![Azure SeaweedFS CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/azure-seaweedfs.yml)
 [![HA Cluster CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/ha-cluster.yml)
 [![Kubernetes CI](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml/badge.svg)](https://github.com/ArcadeData/arcadedb-deployments/actions/workflows/kubernetes.yml)
@@ -15,6 +16,7 @@ from single-node development setups to production-grade HA clusters.
 | Scenario | Description | Orchestrator |
 |----------|-------------|--------------|
 | [AWS](./aws/) | Single EC2 instance or 3-node HA cluster from the Marketplace AMI | Terraform / CloudFormation |
+| [Azure](./azure/) | Single VM or 3-node HA cluster from the Azure Marketplace image | Terraform |
 | [Azure SeaweedFS](./azure-seaweedfs/) | 3-node HA cluster on SeaweedFS, tiered to (emulated) Azure Blob via floci-az | Kubernetes / Helm |
 | [HA Cluster](./ha-cluster/) | 3-node high-availability cluster with Raft consensus | Docker Compose |
 | [Kubernetes](./kubernetes/) | 3-node HA cluster deployed via Helm on a local kind cluster | Kubernetes / Helm |
@@ -36,6 +38,7 @@ gh workflow run all-modules.yml
 - Docker Compose >= 2.0 (ha-cluster and spring-cluster scenarios)
 - [kind](https://kind.sigs.k8s.io/) >= 0.24.0, [Helm](https://helm.sh/) >= 3.16, `kubectl` (kubernetes and azure-seaweedfs scenarios)
 - [Terraform](https://developer.hashicorp.com/terraform) >= 1.2 (>= 1.0 for the single instance) or the [AWS CLI](https://aws.amazon.com/cli/), plus an AWS account (aws scenario)
+- [Terraform](https://developer.hashicorp.com/terraform) >= 1.5, the [Azure CLI](https://learn.microsoft.com/cli/azure/) and an Azure subscription (azure scenario)
 - JDK 25 and Maven 3.9+ (spring-cluster local builds)
 - `curl` and `jq`
 
