@@ -24,9 +24,15 @@ variable "name_prefix" {
 # -----------------------------------------------------------------------------
 
 variable "vm_size" {
-  description = "VM size. Arm64 sizes (Standard_D2ps_v5, Standard_D4pds_v5, Standard_E2ps_v5, ...) get the Arm64 image, everything else the x64 image. Must be a Generation 2, Trusted launch capable size."
+  description = "VM size. Arm64 sizes (Standard_D2ps_v5, Standard_D4pds_v5, Standard_E2ps_v5, ...) get the Arm64 image, everything else the x64 image. Must be a Generation 2 size."
   type        = string
   default     = "Standard_D2s_v5"
+}
+
+variable "trusted_launch" {
+  description = "Trusted launch (secure boot + vTPM). null = on for x64 sizes, off for Arm64 sizes, because Azure does not support it on the Ampere Arm64 sizes (Dpsv5, Epsv5). Set true for an Arm64 size that supports it."
+  type        = bool
+  default     = null
 }
 
 variable "admin_username" {

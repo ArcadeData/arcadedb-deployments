@@ -9,7 +9,7 @@ Deploys a 3-node ArcadeDB cluster (Raft) on Azure from the ArcadeDB Azure Market
 | Resource | Count | Notes |
 |----------|-------|-------|
 | `azurerm_network_interface` | 3 | NIC of node N in `subnet_id`, static private IP (`private_ips[N]`, default `cidrhost(<subnet prefix>, 10 + N)`); created before the VM, so the IP is fixed and survives VM replacement |
-| `azurerm_linux_virtual_machine` | 3 | `<name_prefix>-node-0..2`, node N in zone `availability_zones[N]`; Trusted launch, SSH key login only, encrypted managed OS disk, boot diagnostics on managed storage, no public IP |
+| `azurerm_linux_virtual_machine` | 3 | `<name_prefix>-node-0..2`, node N in zone `availability_zones[N]`; Trusted launch on x64, SSH key login only, encrypted managed OS disk, boot diagnostics on managed storage, no public IP |
 | `azurerm_application_security_group` | 1 | groups the three NICs, used by the node-to-node rules |
 | `azurerm_network_security_group` + rules | 1 | attached to each NIC (see [Network access](#network-access)) |
 | `azurerm_private_dns_zone` | 1 | private zone (default `arcadedb.internal`) |
@@ -57,7 +57,7 @@ The load balancer probe is `GET /api/v1/ready` (unauthenticated) on the HTTP por
 
   The offer has a paid plan with a 1-month free trial. With `image_id` set, no terms are needed.
 
-The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D4pds_v5`, `Standard_E2ps_v5`, ...) get the `arcadedb-ubuntu-arm64` image, all others `arcadedb-ubuntu`. With `image_id`, the plan fails if the gallery image definition's architecture does not match `vm_size`.
+The architecture follows `vm_size`: Arm64 sizes (`Standard_D2ps_v5`, `Standard_D4pds_v5`, `Standard_E2ps_v5`, ...) get the `arcadedb-ubuntu-arm64` image, all others `arcadedb-ubuntu`. With `image_id`, the plan fails if the gallery image definition's architecture does not match `vm_size`. Trusted launch (secure boot + vTPM) is on for x64 and off for Arm64, because Azure does not support it on the Ampere Arm64 sizes (Dpsv5, Epsv5); override with `trusted_launch`.
 
 ## Usage
 
@@ -125,6 +125,7 @@ Do not set `allowed_cidr` to `0.0.0.0/0`. The nodes get no public IP.
 | Variable             | Required | Default           | Description |
 |----------------------|----------|-------------------|-------------|
 | vm_size              | No       | Standard_D2s_v5   | VM size for all nodes (decides the architecture) |
+| trusted_launch       | No       | null (x64 on, Arm64 off) | Secure boot + vTPM |
 | admin_username       | No       | azureuser         | Admin user (SSH key only) |
 | admin_ssh_public_key | Yes      | -                 | SSH public key |
 | os_disk_size_gb      | No       | 30                | OS disk size per node (GB) |

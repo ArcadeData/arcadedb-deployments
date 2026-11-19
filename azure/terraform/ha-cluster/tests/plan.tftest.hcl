@@ -243,6 +243,22 @@ run "arm" {
     condition     = local.is_arm && alltrue([for vm in azurerm_linux_virtual_machine.node : vm.plan[0].name == "arcadedb-ubuntu-arm64"])
     error_message = "Arm64 sizes get the arm64 SKU"
   }
+  assert {
+    condition     = alltrue([for vm in azurerm_linux_virtual_machine.node : !vm.secure_boot_enabled && !vm.vtpm_enabled])
+    error_message = "Arm64 sizes default to Trusted launch off (Dpsv5 does not support it)"
+  }
+}
+
+run "arm_trusted_launch_forced_on" {
+  command = plan
+  variables {
+    vm_size        = "Standard_D2ps_v6"
+    trusted_launch = true
+  }
+  assert {
+    condition     = alltrue([for vm in azurerm_linux_virtual_machine.node : vm.secure_boot_enabled && vm.vtpm_enabled])
+    error_message = "trusted_launch = true turns it on for Arm64"
+  }
 }
 
 run "gallery_image" {
