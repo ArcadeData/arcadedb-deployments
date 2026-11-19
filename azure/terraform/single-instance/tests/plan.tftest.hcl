@@ -160,6 +160,50 @@ run "x64_f4s_v2" {
   }
 }
 
+run "arm_d2ps_v6" {
+  command = plan
+  variables {
+    vm_size = "Standard_D2ps_v6"
+  }
+  assert {
+    condition     = local.is_arm
+    error_message = "Standard_D2ps_v6 is Arm64"
+  }
+}
+
+run "x64_b1s" {
+  command = plan
+  variables {
+    vm_size = "Standard_B1s"
+  }
+  assert {
+    condition     = !local.is_arm
+    error_message = "Standard_B1s is x64"
+  }
+}
+
+run "x64_dc2s_v3" {
+  command = plan
+  variables {
+    vm_size = "Standard_DC2s_v3"
+  }
+  assert {
+    condition     = !local.is_arm
+    error_message = "Standard_DC2s_v3 is x64"
+  }
+}
+
+run "x64_e2bds_v5" {
+  command = plan
+  variables {
+    vm_size = "Standard_E2bds_v5"
+  }
+  assert {
+    condition     = !local.is_arm
+    error_message = "Standard_E2bds_v5 is x64"
+  }
+}
+
 run "gallery_image" {
   command = plan
   variables {
