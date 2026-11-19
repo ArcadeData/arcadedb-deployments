@@ -1,0 +1,20 @@
+#cloud-config
+write_files:
+  # Written before arcadedb-firstboot runs, which then keeps it instead of generating one.
+  # Every node gets the same password, so every node derives the same root user.
+  - path: /etc/arcadedb/root-password
+    owner: arcadedb:arcadedb
+    permissions: "0600"
+    content: ${jsonencode(arcadedb_root_password)}
+  - path: /etc/systemd/system/arcadedb.service.d/override.conf
+    permissions: "0644"
+    content: |
+      [Service]
+      Environment="ARCADEDB_SETTINGS=${arcadedb_settings}"
+      Environment="JAVA_OPTS=-Xms512m -Xmx${arcadedb_max_ram}m -XX:+UseG1GC"
+runcmd:
+  # Hold whatever order the image's units started in: restart with the settings above.
+  - systemctl stop arcadedb || true
+  - rm -f /opt/arcadedb/config/server-users.jsonl
+  - systemctl daemon-reload
+  - systemctl start arcadedb
