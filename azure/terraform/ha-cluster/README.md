@@ -2,7 +2,7 @@
 
 Deploys a 3-node ArcadeDB cluster (Raft) on Azure from the ArcadeDB Azure Marketplace image: one VM per availability zone, node discovery through an Azure private DNS zone, and an optional internal Standard load balancer in front of the HTTP API. The AWS counterpart is `../../../aws/terraform/ha-cluster`.
 
-> This template is validated statically (`terraform fmt`, `validate`) and with `terraform test` against a mocked provider in this repository, which has no Azure subscription. It has not been deployed from here yet; see "Verified on Azure" below.
+> This template is validated statically (`terraform fmt`, `validate`) and with `terraform test` against a mocked provider in this repository, which has no Azure subscription. It was deployed on Azure on 2026-11-19 by the `terraform-ha-test.yml` workflow of [ArcadeData/arcadedb-azure](https://github.com/ArcadeData/arcadedb-azure); see "Verified on Azure" below.
 
 ## What gets created
 
@@ -169,7 +169,14 @@ The tests run `plan` against a mocked provider, so they need no Azure credential
 
 ## Verified on Azure
 
-Not yet.
+On 2026-11-19 one deployment (Terraform, `eastus`, `Standard_D2s_v4` nodes in zones 1/2/3, ArcadeDB 26.11.1 from the Compute Gallery image that the Marketplace offer is built from, internal load balancer on) passed these checks, then was destroyed without leftovers:
+
+- the three nodes formed one cluster and agreed on one leader;
+- a record written on a follower was readable on all three nodes;
+- a write and a read through the internal load balancer, from a separate VM in the same VNet, succeeded;
+- after stopping the leader VM, a surviving node became leader and a write on it was readable on the other survivor.
+
+Not covered by that run: the Marketplace image itself (`image_id` empty), Arm64 nodes, replacing a node, changing `custom_data` on a running cluster, restoring from a backup, and sustained load.
 
 ## Operations notes
 
