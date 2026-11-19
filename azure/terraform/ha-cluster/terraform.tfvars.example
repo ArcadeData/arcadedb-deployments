@@ -1,0 +1,33 @@
+# Required
+resource_group_name    = "rg-arcadedb"
+subnet_id              = "/subscriptions/<subscription-id>/resourceGroups/rg-arcadedb/providers/Microsoft.Network/virtualNetworks/vnet-arcadedb/subnets/snet-arcadedb"
+admin_ssh_public_key   = "ssh-ed25519 AAAA... you@example.com"
+allowed_cidr           = "10.0.0.0/16"
+arcadedb_root_password = "MySecurePass123!"
+
+# Cluster
+# name_prefix          = "arcadedb-ha"
+# private_zone_name    = "arcadedb.internal"     # use a distinct name per cluster in the same VNet
+# enable_lb            = true
+# availability_zones   = ["1", "2", "3"]
+# private_ips          = ["10.0.1.10", "10.0.1.11", "10.0.1.12"]   # default: cidrhost(<subnet>, 10 + N)
+
+# Optional — uncomment to override defaults
+# location             = "eastus"        # default: the resource group's location
+# vm_size              = "Standard_D2s_v5"
+# admin_username       = "azureuser"
+# enable_ssh           = false
+# os_disk_size_gb      = 30
+# os_disk_type         = "Premium_LRS"
+# tags                 = { Environment = "dev" }
+
+# ArcadeDB tuning
+# arcadedb_server_mode = "production"
+# arcadedb_http_port   = "2480"
+# arcadedb_plugins     = "Postgres:com.arcadedb.postgres.PostgresProtocolPlugin"
+# arcadedb_max_ram     = "2048"
+# arcadedb_java_opts   = "-Darcadedb.server.defaultDatabases=mydb[root]"
+
+# Image — leave empty for the Azure Marketplace image
+# image_version        = "26.11.1"
+# image_id             = "/subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.Compute/galleries/<gallery>/images/<definition>/versions/<version>"

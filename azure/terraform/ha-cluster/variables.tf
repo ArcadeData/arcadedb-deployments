@@ -1,0 +1,193 @@
+# -----------------------------------------------------------------------------
+# Placement
+# -----------------------------------------------------------------------------
+
+variable "resource_group_name" {
+  description = "Name of an existing resource group to deploy into."
+  type        = string
+}
+
+variable "location" {
+  description = "Azure region. If not set, the location of the resource group is used."
+  type        = string
+  default     = null
+}
+
+variable "name_prefix" {
+  description = "Prefix for the names of all resources, also set as the Cluster tag."
+  type        = string
+  default     = "arcadedb-ha"
+}
+
+# -----------------------------------------------------------------------------
+# VM Configuration
+# -----------------------------------------------------------------------------
+
+variable "vm_size" {
+  description = "VM size for all three nodes. Arm64 sizes (Standard_D2ps_v5, Standard_D4pds_v5, Standard_E2ps_v5, ...) get the Arm64 image, everything else the x64 image. Must be a Generation 2, Trusted launch capable size."
+  type        = string
+  default     = "Standard_D2s_v5"
+}
+
+variable "admin_username" {
+  description = "Administrator user created on every node (SSH key login only)."
+  type        = string
+  default     = "azureuser"
+}
+
+variable "admin_ssh_public_key" {
+  description = "SSH public key for admin_username (e.g. the contents of ~/.ssh/id_ed25519.pub)."
+  type        = string
+}
+
+variable "os_disk_size_gb" {
+  description = "Size of the OS disk in GB"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.os_disk_size_gb >= 30 && var.os_disk_size_gb <= 4095
+    error_message = "OS disk size must be between 30 and 4095 GB."
+  }
+}
+
+variable "os_disk_type" {
+  description = "OS disk storage type"
+  type        = string
+  default     = "Premium_LRS"
+
+  validation {
+    condition     = contains(["Premium_LRS", "StandardSSD_LRS", "Standard_LRS", "Premium_ZRS", "StandardSSD_ZRS"], var.os_disk_type)
+    error_message = "OS disk type must be Premium_LRS, StandardSSD_LRS, Standard_LRS, Premium_ZRS or StandardSSD_ZRS."
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Image Configuration
+# -----------------------------------------------------------------------------
+
+variable "image_id" {
+  description = "Resource ID of a Compute Gallery image version to deploy instead of the Marketplace image (no plan, no terms to accept). Its architecture must match vm_size."
+  type        = string
+  default     = ""
+}
+
+variable "image_version" {
+  description = "Version of the Marketplace image (e.g. 26.11.1). Ignored when image_id is set."
+  type        = string
+  default     = "latest"
+}
+
+# -----------------------------------------------------------------------------
+# Network Configuration
+# -----------------------------------------------------------------------------
+
+variable "subnet_id" {
+  description = "ID of an existing subnet for the nodes and the load balancer. Its VNet is linked to the private DNS zone."
+  type        = string
+}
+
+variable "allowed_cidr" {
+  description = "CIDR block allowed to reach ArcadeDB (e.g. 10.0.0.0/16 or your IP/32)."
+  type        = string
+}
+
+variable "enable_ssh" {
+  description = "Allow SSH (port 22) from allowed_cidr."
+  type        = bool
+  default     = false
+}
+
+variable "private_ips" {
+  description = "Static private IPs of node-0..node-2, inside the subnet. Empty means cidrhost(<subnet prefix>, 10 + N)."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.private_ips) == 0 || length(var.private_ips) == 3
+    error_message = "private_ips must be empty or list exactly 3 addresses (node-0, node-1, node-2)."
+  }
+}
+
+variable "availability_zones" {
+  description = "Availability zone of node-0, node-1 and node-2. The region and vm_size must support them."
+  type        = list(string)
+  default     = ["1", "2", "3"]
+
+  validation {
+    condition     = length(var.availability_zones) == 3
+    error_message = "availability_zones must list exactly 3 zones (one per node)."
+  }
+}
+
+variable "private_zone_name" {
+  description = "Private DNS zone for node discovery (node-N.<zone>). A VNet cannot link two zones with the same name."
+  type        = string
+  default     = "arcadedb.internal"
+}
+
+variable "enable_lb" {
+  description = "Create an internal Standard load balancer on the HTTP port in front of the nodes."
+  type        = bool
+  default     = true
+}
+
+# -----------------------------------------------------------------------------
+# ArcadeDB Configuration
+# -----------------------------------------------------------------------------
+
+variable "arcadedb_root_password" {
+  description = "Root password for ArcadeDB, the same on every node, from A-Z a-z 0-9 @!#^+=._&-. It is stored in the VMs' custom data, so change it after the first login."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9@!#^+=._&-]+$", var.arcadedb_root_password))
+    error_message = "Root password is required and may only contain A-Z a-z 0-9 @ ! # ^ + = . _ & -."
+  }
+}
+
+variable "arcadedb_server_mode" {
+  description = "ArcadeDB server mode"
+  type        = string
+  default     = "production"
+
+  validation {
+    condition     = contains(["development", "test", "production"], var.arcadedb_server_mode)
+    error_message = "Server mode must be development, test, or production."
+  }
+}
+
+variable "arcadedb_http_port" {
+  description = "HTTP port for ArcadeDB API and Studio (also used in the server list and by the load balancer)"
+  type        = string
+  default     = "2480"
+}
+
+variable "arcadedb_plugins" {
+  description = "Comma-separated list of plugins, e.g. Postgres:com.arcadedb.postgres.PostgresProtocolPlugin"
+  type        = string
+  default     = ""
+}
+
+variable "arcadedb_max_ram" {
+  description = "Max heap size in MB (sets JVM -Xmx)"
+  type        = string
+  default     = "2048"
+}
+
+variable "arcadedb_java_opts" {
+  description = "Additional -Darcadedb.* JVM flags for advanced tuning (appended as-is to ARCADEDB_SETTINGS on every node; avoid double quotes)"
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Tags
+# -----------------------------------------------------------------------------
+
+variable "tags" {
+  description = "Tags added to every resource, together with Cluster and Application."
+  type        = map(string)
+  default     = {}
+}
