@@ -158,8 +158,8 @@ run "lb" {
     error_message = "LB frontend must be zone-redundant"
   }
   assert {
-    condition     = azurerm_lb_probe.http[0].protocol == "Http" && azurerm_lb_probe.http[0].request_path == "/api/v1/ready" && azurerm_lb_probe.http[0].port == 2480
-    error_message = "Probe must be GET /api/v1/ready on the HTTP port"
+    condition     = azurerm_lb_probe.http[0].protocol == "Tcp" && azurerm_lb_probe.http[0].request_path == null && azurerm_lb_probe.http[0].port == 2480
+    error_message = "Probe must be TCP on the HTTP port (/api/v1/ready answers 204, which an Azure HTTP probe counts as down)"
   }
   assert {
     condition     = azurerm_lb_rule.http[0].frontend_port == 2480 && azurerm_lb_rule.http[0].backend_port == 2480 && azurerm_lb_rule.http[0].protocol == "Tcp"

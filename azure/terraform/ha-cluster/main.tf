@@ -325,16 +325,15 @@ resource "azurerm_lb_backend_address_pool" "nodes" {
   loadbalancer_id = azurerm_lb.this[0].id
 }
 
-# /api/v1/ready is unauthenticated. With readinessRequiresHA=true a node only reports ready
-# once it is part of the cluster.
+# TCP, not HTTP: /api/v1/ready answers 204 and an Azure HTTP probe counts anything but 200 as
+# down, which would take every node out of the pool.
 resource "azurerm_lb_probe" "http" {
   count = var.enable_lb ? 1 : 0
 
-  name                = "arcadedb-ready"
+  name                = "arcadedb-http"
   loadbalancer_id     = azurerm_lb.this[0].id
-  protocol            = "Http"
+  protocol            = "Tcp"
   port                = tonumber(var.arcadedb_http_port)
-  request_path        = "/api/v1/ready"
   interval_in_seconds = 5
   number_of_probes    = 2
 }

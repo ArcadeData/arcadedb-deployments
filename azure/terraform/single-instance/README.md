@@ -120,7 +120,13 @@ The tests run `plan` against a mocked provider, so they need no Azure credential
 
 ## Verified on Azure
 
-Not yet.
+On 2026-11-19 two deployments (Terraform, `eastus`, ArcadeDB 26.11.1 from the Compute Gallery image that the Marketplace offer is built from, root password set through `arcadedb_root_password`) passed these checks, then were destroyed without leftovers:
+
+- x64 on `Standard_D2s_v5` (Trusted launch on) and Arm64 on `Standard_D2ps_v5` (Trusted launch off, the default for Arm64);
+- ArcadeDB answered an authenticated `/api/v1/server` with the configured password;
+- a database was created, a record inserted and read back.
+
+Not covered by those runs: the Marketplace image itself (`image_id` empty), the image-generated password (`arcadedb_root_password` empty), `enable_ssh` and public IPs.
 
 ## Destroying
 
